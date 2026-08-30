@@ -1,75 +1,60 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
-import { inventoryApi } from '@/api/inventory'
+import { ref, computed } from 'vue'
+import { useMockDataStore } from './mockData'
 import { useUiStore } from './ui'
 
 export const useInventoryStore = defineStore('inventory', () => {
+    const mock = useMockDataStore()
     const ui = useUiStore()
 
-    const products = ref([])
-    const units = ref([])
-    const accessories = ref([])
-    const categories = ref([])
-    const brands = ref([])
-    const lowStockItems = ref([])
     const loading = ref(false)
+
+    // Expose mock data reactively
+    const products = computed(() => mock.devices)
+    const devices = computed(() => mock.devices)
+    const accessories = computed(() => mock.accessories)
+    const units = computed(() => mock.devices)
+    const lowStockItems = computed(() =>
+        mock.accessories.filter(a => a.stock_qty <= a.reorder_level)
+    )
+
     const pagination = ref({ count: 0, next: null, previous: null })
+    const categories = ref([...new Set(mock.accessories.map(a => a.category).filter(Boolean))])
+    const brands = ref([...new Set(mock.devices.map(d => d.brand).filter(Boolean))])
 
     async function fetchProducts(params = {}) {
         loading.value = true
-        try {
-            const res = await inventoryApi.listProducts(params)
-            products.value = res.data.results ?? res.data
-            pagination.value = { count: res.data.count, next: res.data.next, previous: res.data.previous }
-        } catch (e) {
-            ui.toastError(e.displayMessage || 'Failed to load products')
-        } finally { loading.value = false }
+        await new Promise(r => setTimeout(r, 50))
+        loading.value = false
     }
 
     async function fetchUnits(params = {}) {
         loading.value = true
-        try {
-            const res = await inventoryApi.listUnits(params)
-            units.value = res.data.results ?? res.data
-        } catch (e) {
-            ui.toastError(e.displayMessage || 'Failed to load units')
-        } finally { loading.value = false }
+        await new Promise(r => setTimeout(r, 50))
+        loading.value = false
     }
 
     async function fetchAccessories(params = {}) {
         loading.value = true
-        try {
-            const res = await inventoryApi.listAccessories(params)
-            accessories.value = res.data.results ?? res.data
-        } catch (e) {
-            ui.toastError(e.displayMessage || 'Failed to load accessories')
-        } finally { loading.value = false }
+        await new Promise(r => setTimeout(r, 50))
+        loading.value = false
     }
 
-    async function fetchCategories() {
-        const res = await inventoryApi.listCategories()
-        categories.value = res.data.results ?? res.data
-    }
+    async function fetchCategories() { }
+    async function fetchBrands() { }
+    async function fetchLowStock() { }
 
-    async function fetchBrands() {
-        const res = await inventoryApi.listBrands()
-        brands.value = res.data.results ?? res.data
-    }
-
-    async function fetchLowStock() {
-        const res = await inventoryApi.listLowStock()
-        lowStockItems.value = res.data.results ?? res.data
-    }
-
+    /** Scan lookup: tries IMEI then SKU */
     async function scanItem(query) {
-        const res = await inventoryApi.scanLookup(query)
-        return res.data  // { type: 'unit'|'accessory', ...product }
+        await new Promise(r => setTimeout(r, 80))
+        return mock.scanItem(query)
     }
 
     return {
-        products, units, accessories, categories, brands, lowStockItems,
+        products, units, accessories, devices,
+        categories, brands, lowStockItems,
         loading, pagination,
-        fetchProducts, fetchUnits, fetchAccessories, fetchCategories, fetchBrands,
-        fetchLowStock, scanItem,
+        fetchProducts, fetchUnits, fetchAccessories,
+        fetchCategories, fetchBrands, fetchLowStock, scanItem,
     }
 })

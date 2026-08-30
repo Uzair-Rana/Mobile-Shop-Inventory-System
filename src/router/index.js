@@ -1,8 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
 
 // ── Lazy-loaded route components ───────────────────────────────────────────────
-const LoginView = () => import('@/views/auth/LoginView.vue')
 const DashboardView = () => import('@/views/dashboard/DashboardView.vue')
 
 // POS
@@ -14,17 +12,23 @@ const ProductListView = () => import('@/views/inventory/ProductListView.vue')
 const ProductDetailView = () => import('@/views/inventory/ProductDetailView.vue')
 const UnitListView = () => import('@/views/inventory/UnitListView.vue')
 const AccessoryListView = () => import('@/views/inventory/AccessoryListView.vue')
+const DeviceListView = () => import('@/views/inventory/DeviceListView.vue')
+const DeviceDetailView = () => import('@/views/inventory/DeviceDetailView.vue')
+const DeviceAddView = () => import('@/views/inventory/DeviceAddView.vue')
+const BarcodeLabelsView = () => import('@/views/inventory/BarcodeLabelsView.vue')
 
 // Sales
 const SalesLayout = () => import('@/views/sales/SalesLayout.vue')
 const InvoiceListView = () => import('@/views/sales/InvoiceListView.vue')
 const InvoiceDetailView = () => import('@/views/sales/InvoiceDetailView.vue')
+const InvoiceCorrectionView = () => import('@/views/sales/InvoiceCorrectionView.vue')
 
 // Repairs
 const RepairsLayout = () => import('@/views/repairs/RepairsLayout.vue')
 const RepairListView = () => import('@/views/repairs/RepairListView.vue')
 const RepairDetailView = () => import('@/views/repairs/RepairDetailView.vue')
 const RepairNewView = () => import('@/views/repairs/RepairNewView.vue')
+const RepairBoardView = () => import('@/views/repairs/RepairBoardView.vue')
 
 // Customers
 const CustomerListView = () => import('@/views/customers/CustomerListView.vue')
@@ -39,10 +43,21 @@ const PurchasesLayout = () => import('@/views/purchases/PurchasesLayout.vue')
 const PurchaseListView = () => import('@/views/purchases/PurchaseListView.vue')
 const PurchaseDetailView = () => import('@/views/purchases/PurchaseDetailView.vue')
 const PurchaseNewView = () => import('@/views/purchases/PurchaseNewView.vue')
+const AcquisitionView = () => import('@/views/purchases/AcquisitionView.vue')
 
 // Installments
 const InstallmentListView = () => import('@/views/installments/InstallmentListView.vue')
 const InstallmentDetailView = () => import('@/views/installments/InstallmentDetailView.vue')
+const InstallmentPlanBuilderView = () => import('@/views/installments/InstallmentPlanBuilderView.vue')
+const OverdueAgingView = () => import('@/views/installments/OverdueAgingView.vue')
+
+// Cash
+const CashSessionView = () => import('@/views/cash/CashSessionView.vue')
+const ExpenseListView = () => import('@/views/cash/ExpenseListView.vue')
+
+// Transfers
+const TransferListView = () => import('@/views/transfers/TransferListView.vue')
+const TransferDetailView = () => import('@/views/transfers/TransferDetailView.vue')
 
 // Reports
 const ReportsLayout = () => import('@/views/reports/ReportsLayout.vue')
@@ -51,6 +66,11 @@ const ProfitReportView = () => import('@/views/reports/ProfitReportView.vue')
 const InventoryReportView = () => import('@/views/reports/InventoryReportView.vue')
 const RepairReportView = () => import('@/views/reports/RepairReportView.vue')
 const InstallmentReportView = () => import('@/views/reports/InstallmentReportView.vue')
+const ImeiHistoryView = () => import('@/views/reports/ImeiHistoryView.vue')
+const StaffReportView = () => import('@/views/reports/StaffReportView.vue')
+const DeadStockView = () => import('@/views/reports/DeadStockView.vue')
+const CashReportView = () => import('@/views/reports/CashReportView.vue')
+const CustomerLedgerView = () => import('@/views/reports/CustomerLedgerView.vue')
 
 // Settings
 const SettingsLayout = () => import('@/views/settings/SettingsLayout.vue')
@@ -58,15 +78,10 @@ const CompanySettingsView = () => import('@/views/settings/CompanySettingsView.v
 const UsersSettingsView = () => import('@/views/settings/UsersSettingsView.vue')
 const RolesSettingsView = () => import('@/views/settings/RolesSettingsView.vue')
 const TaxSettingsView = () => import('@/views/settings/TaxSettingsView.vue')
+const AuditLogView = () => import('@/views/settings/AuditLogView.vue')
 
 // ── Route definitions ──────────────────────────────────────────────────────────
 const routes = [
-    {
-        path: '/login',
-        name: 'login',
-        component: LoginView,
-        meta: { public: true },
-    },
     {
         path: '/',
         redirect: '/dashboard',
@@ -84,6 +99,25 @@ const routes = [
         component: PosView,
         meta: { requiresAuth: true, title: 'Point of Sale', fullscreen: true },
     },
+    // Cash
+    {
+        path: '/cash',
+        meta: { requiresAuth: true },
+        children: [
+            { path: '', name: 'cash.session', component: CashSessionView, meta: { title: 'Cash Session' } },
+            { path: 'expenses', name: 'cash.expenses', component: ExpenseListView, meta: { title: 'Expenses' } },
+        ],
+    },
+    // Transfers
+    {
+        path: '/transfers',
+        meta: { requiresAuth: true },
+        children: [
+            { path: '', name: 'transfers.list', component: TransferListView, meta: { title: 'Transfers' } },
+            { path: ':id', name: 'transfers.detail', component: TransferDetailView, meta: { title: 'Transfer' } },
+        ],
+    },
+    // Inventory
     {
         path: '/inventory',
         component: InventoryLayout,
@@ -94,8 +128,13 @@ const routes = [
             { path: 'products/:id', name: 'inventory.product', component: ProductDetailView, meta: { title: 'Product' } },
             { path: 'units', name: 'inventory.units', component: UnitListView, meta: { title: 'IMEI / Units' } },
             { path: 'accessories', name: 'inventory.accessories', component: AccessoryListView, meta: { title: 'Accessories' } },
+            { path: 'devices', name: 'inventory.devices', component: DeviceListView, meta: { title: 'Devices' } },
+            { path: 'devices/new', name: 'inventory.devices.new', component: DeviceAddView, meta: { title: 'Add Device' } },
+            { path: 'devices/:id', name: 'inventory.devices.detail', component: DeviceDetailView, meta: { title: 'Device' } },
+            { path: 'labels', name: 'inventory.labels', component: BarcodeLabelsView, meta: { title: 'Barcode Labels' } },
         ],
     },
+    // Sales
     {
         path: '/sales',
         component: SalesLayout,
@@ -104,19 +143,23 @@ const routes = [
             { path: '', redirect: 'invoices' },
             { path: 'invoices', name: 'sales.invoices', component: InvoiceListView, meta: { title: 'Invoices' } },
             { path: 'invoices/:id', name: 'sales.invoice', component: InvoiceDetailView, meta: { title: 'Invoice' } },
+            { path: 'invoices/:id/correct', name: 'sales.invoice.correct', component: InvoiceCorrectionView, meta: { title: 'Invoice Correction' } },
         ],
     },
+    // Repairs
     {
         path: '/repairs',
         component: RepairsLayout,
         meta: { requiresAuth: true },
         children: [
             { path: '', redirect: 'jobs' },
+            { path: 'board', name: 'repairs.board', component: RepairBoardView, meta: { title: 'Repair Board' } },
             { path: 'jobs', name: 'repairs.list', component: RepairListView, meta: { title: 'Repair Jobs' } },
             { path: 'jobs/new', name: 'repairs.new', component: RepairNewView, meta: { title: 'New Repair Job' } },
             { path: 'jobs/:id', name: 'repairs.detail', component: RepairDetailView, meta: { title: 'Repair Job' } },
         ],
     },
+    // Customers
     {
         path: '/customers',
         meta: { requiresAuth: true },
@@ -125,6 +168,7 @@ const routes = [
             { path: ':id', name: 'customers.detail', component: CustomerDetailView, meta: { title: 'Customer' } },
         ],
     },
+    // Suppliers
     {
         path: '/suppliers',
         meta: { requiresAuth: true },
@@ -133,6 +177,7 @@ const routes = [
             { path: ':id', name: 'suppliers.detail', component: SupplierDetailView, meta: { title: 'Supplier' } },
         ],
     },
+    // Purchases
     {
         path: '/purchases',
         component: PurchasesLayout,
@@ -142,16 +187,21 @@ const routes = [
             { path: 'orders', name: 'purchases.list', component: PurchaseListView, meta: { title: 'Purchase Orders' } },
             { path: 'orders/new', name: 'purchases.new', component: PurchaseNewView, meta: { title: 'New PO' } },
             { path: 'orders/:id', name: 'purchases.detail', component: PurchaseDetailView, meta: { title: 'Purchase Order' } },
+            { path: 'acquisitions/new', name: 'purchases.acquisition', component: AcquisitionView, meta: { title: 'Used Phone Acquisition' } },
         ],
     },
+    // Installments
     {
         path: '/installments',
         meta: { requiresAuth: true },
         children: [
             { path: '', name: 'installments.list', component: InstallmentListView, meta: { title: 'Installment Plans' } },
+            { path: 'new', name: 'installments.new', component: InstallmentPlanBuilderView, meta: { title: 'New Installment Plan' } },
+            { path: 'aging', name: 'installments.aging', component: OverdueAgingView, meta: { title: 'Overdue Aging' } },
             { path: ':id', name: 'installments.detail', component: InstallmentDetailView, meta: { title: 'Installment Plan' } },
         ],
     },
+    // Reports
     {
         path: '/reports',
         component: ReportsLayout,
@@ -163,8 +213,14 @@ const routes = [
             { path: 'inventory', name: 'reports.inventory', component: InventoryReportView, meta: { title: 'Inventory Valuation' } },
             { path: 'repairs', name: 'reports.repairs', component: RepairReportView, meta: { title: 'Repairs Report' } },
             { path: 'installments', name: 'reports.installments', component: InstallmentReportView, meta: { title: 'Installments Report' } },
+            { path: 'imei-history', name: 'reports.imei', component: ImeiHistoryView, meta: { title: 'IMEI History' } },
+            { path: 'staff', name: 'reports.staff', component: StaffReportView, meta: { title: 'Staff Report', requiresPermission: 'view_reports' } },
+            { path: 'dead-stock', name: 'reports.deadstock', component: DeadStockView, meta: { title: 'Dead Stock' } },
+            { path: 'cash', name: 'reports.cash', component: CashReportView, meta: { title: 'Cash Report' } },
+            { path: 'customer-ledger', name: 'reports.ledger', component: CustomerLedgerView, meta: { title: 'Customer Ledger' } },
         ],
     },
+    // Settings
     {
         path: '/settings',
         component: SettingsLayout,
@@ -175,6 +231,7 @@ const routes = [
             { path: 'users', name: 'settings.users', component: UsersSettingsView, meta: { title: 'Users', requiresPermission: 'manage_users' } },
             { path: 'roles', name: 'settings.roles', component: RolesSettingsView, meta: { title: 'Roles', requiresPermission: 'manage_users' } },
             { path: 'tax', name: 'settings.tax', component: TaxSettingsView, meta: { title: 'Tax' } },
+            { path: 'audit', name: 'settings.audit', component: AuditLogView, meta: { title: 'Audit Log' } },
         ],
     },
     // 404
@@ -190,26 +247,7 @@ export const router = createRouter({
 
 // ── Navigation guard ───────────────────────────────────────────────────────────
 router.beforeEach(async (to, _from, next) => {
-    const auth = useAuthStore()
-
-    // Init auth from stored token on first load
-    if (!auth.user && auth.token) {
-        await auth.init()
-    }
-
-    if (to.meta.public) return next()
-
-    if (to.meta.requiresAuth && !auth.isLoggedIn) {
-        return next({ name: 'login', query: { redirect: to.fullPath } })
-    }
-
-    if (to.meta.requiresPermission && !auth.hasPermission(to.meta.requiresPermission)) {
-        return next({ name: 'dashboard' })
-    }
-
-    // Update document title
     document.title = to.meta.title ? `${to.meta.title} — DEVNEST` : 'DEVNEST'
-
     next()
 })
 

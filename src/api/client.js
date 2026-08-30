@@ -49,8 +49,9 @@ client.interceptors.response.use(
 
         if (error.response?.status === 401) {
             localStorage.removeItem('devnest_token')
-            if (!window.location.pathname.includes('/login')) {
-                window.location.href = '/login'
+            localStorage.removeItem('devnest_user')
+            if (!window.location.pathname.includes('/dashboard')) {
+                window.location.href = '/'
             }
         }
         return Promise.reject(normaliseError(error))

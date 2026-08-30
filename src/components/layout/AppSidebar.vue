@@ -1,17 +1,10 @@
 <script setup>
-/**
- * AppSidebar — compact, keyboard-navigable nav.
- *
- * Collapsed (icon-only) = 44px wide, a sliver — barely takes space.
- * Expanded = 188px — tight but readable.
- * No section labels when collapsed.
- * Alert badges on nav items (low stock, overdue, etc.) come from the ui store.
- */
-import { computed, h } from 'vue'
+import { computed } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { PERMISSIONS } from '@/utils/constants'
+import NavIcon from '@/components/ui/NavIcon.vue'
 
 const auth  = useAuthStore()
 const ui    = useUiStore()
@@ -20,8 +13,8 @@ const route = useRoute()
 const nav = computed(() => [
   {
     items: [
-      { name: 'Dashboard',     to: '/dashboard',           icon: 'home'     },
-      { name: 'Point of Sale', to: '/pos',                 icon: 'pos',  accent: true },
+      { name: 'Dashboard',     to: '/dashboard',             icon: 'home'     },
+      { name: 'Point of Sale', to: '/pos',                   icon: 'pos',   accent: true },
     ],
   },
   {
@@ -57,6 +50,8 @@ const nav = computed(() => [
   },
   {
     items: [
+      { name: 'Cash',          to: '/cash',                  icon: 'cash'     },
+      { name: 'Transfers',     to: '/transfers',             icon: 'transfer' },
       { name: 'Settings',      to: '/settings',              icon: 'cog'      },
     ],
   },
@@ -65,140 +60,191 @@ const nav = computed(() => [
 function isActive(to) {
   return route.path === to || (to !== '/dashboard' && route.path.startsWith(to))
 }
+
+const initials = computed(() =>
+  auth.user?.first_name?.[0]?.toUpperCase() ||
+  auth.user?.username?.[0]?.toUpperCase() || '?'
+)
 </script>
 
 <template>
   <aside
-    :style="ui.sidebarOpen ? 'width:188px' : 'width:44px'"
-    class="bg-gray-950 text-gray-400 flex flex-col shrink-0 h-full overflow-hidden transition-[width] duration-150"
+    :class="ui.sidebarOpen ? 'w-[240px]' : 'w-[56px]'"
+    class="sidebar flex flex-col shrink-0 h-full overflow-hidden transition-[width] duration-200 ease-out"
   >
-    <!-- Brand mark -->
-    <div
-      class="flex items-center gap-2 px-2.5 border-b border-gray-800 shrink-0"
-      style="height:40px"  /* matches top bar height exactly */
-    >
-      <div
-        class="h-6 w-6 rounded bg-blue-600 flex items-center justify-center shrink-0 font-bold text-white"
-        style="font-size:10px;letter-spacing:.05em"
-        aria-label="DEVNEST"
-      >DN</div>
-      <Transition name="fade">
-        <span v-if="ui.sidebarOpen" class="text-xs font-bold text-white tracking-widest whitespace-nowrap">
-          DEVNEST
-        </span>
+    <!-- ── Brand ─────────────────────────────────────────────────────────── -->
+    <div class="brand-bar flex items-center gap-3 px-3 shrink-0" style="height:52px">
+      <div class="brand-logo shrink-0">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="28" height="28" rx="7" fill="url(#brand-grad)"/>
+          <path d="M7 14.5l4.5 4.5L21 9" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <defs>
+            <linearGradient id="brand-grad" x1="0" y1="0" x2="28" y2="28" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#3b82f6"/>
+              <stop offset="1" stop-color="#6366f1"/>
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+      <Transition name="fade-slide">
+        <div v-if="ui.sidebarOpen" class="min-w-0">
+          <p class="text-[13px] text-white tracking-tight leading-none font-extrabold">DEVNEST</p>
+          <p class="text-[9px] text-blue-400 font-semibold tracking-widest uppercase mt-0.5">Mobile ERP</p>
+        </div>
       </Transition>
     </div>
 
-    <!-- Nav -->
-    <nav class="flex-1 overflow-y-auto overflow-x-hidden py-1" aria-label="Main navigation">
-      <template v-for="section in nav" :key="section.label || 'main'">
-        <!-- Skip hidden sections -->
+    <!-- ── Nav ───────────────────────────────────────────────────────────── -->
+    <nav class="flex-1 overflow-y-auto overflow-x-hidden py-2 px-2" aria-label="Main navigation">
+      <template v-for="section in nav" :key="section.label || 'root'">
         <template v-if="section.show !== false">
-          <!-- Section label (only when expanded) -->
-          <Transition name="fade">
-            <p
-              v-if="ui.sidebarOpen && section.label"
-              class="px-2.5 pt-3 pb-0.5 text-[9px] font-bold uppercase tracking-widest text-gray-600 select-none"
-            >{{ section.label }}</p>
-          </Transition>
-          <div v-if="!ui.sidebarOpen && section.label" class="mx-2.5 my-1 border-t border-gray-800" />
 
-          <ul class="space-y-px px-1.5 py-0.5">
-            <li v-for="item in section.items" :key="item.to">
-              <RouterLink
-                :to="item.to"
-                :title="item.name"
-                :class="[
-                  isActive(item.to)
-                    ? item.accent
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-800 text-white'
-                    : item.accent
-                      ? 'text-blue-400 hover:bg-blue-600/20 hover:text-blue-300'
-                      : 'hover:bg-gray-800 hover:text-gray-100',
-                ]"
-                class="flex items-center gap-2 px-2 rounded transition-colors"
-                style="height:28px;min-width:0"
-              >
-                <NavIcon
-                  :icon="item.icon"
-                  class="w-3.5 h-3.5 shrink-0"
-                  :class="isActive(item.to) ? 'opacity-100' : 'opacity-70'"
-                />
-                <Transition name="fade">
-                  <span
-                    v-if="ui.sidebarOpen"
-                    class="text-xs font-medium whitespace-nowrap overflow-hidden text-ellipsis"
-                  >{{ item.name }}</span>
-                </Transition>
-              </RouterLink>
-            </li>
-          </ul>
+          <!-- Section label -->
+          <Transition name="fade-slide">
+            <p v-if="ui.sidebarOpen && section.label" class="nav-section-label">
+              {{ section.label }}
+            </p>
+          </Transition>
+          <div v-if="!ui.sidebarOpen && section.label" class="nav-divider" />
+
+          <!-- Nav items -->
+          <RouterLink
+            v-for="item in section.items"
+            :key="item.to"
+            :to="item.to"
+            :title="!ui.sidebarOpen ? item.name : undefined"
+            :class="[
+              isActive(item.to)
+                ? item.accent ? 'nav-item-pos-active' : 'nav-item-active'
+                : item.accent ? 'nav-item-pos' : 'nav-item',
+            ]"
+          >
+            <span class="nav-icon-wrap">
+              <NavIcon :icon="item.icon" class="w-[15px] h-[15px]" />
+            </span>
+            <Transition name="fade-slide">
+              <span v-if="ui.sidebarOpen" class="nav-label">{{ item.name }}</span>
+            </Transition>
+          </RouterLink>
+
         </template>
       </template>
     </nav>
 
-    <!-- User strip -->
-    <div
-      class="border-t border-gray-800 flex items-center gap-2 px-2.5 shrink-0 overflow-hidden"
-      style="height:36px"
-    >
-      <div
-        class="h-5 w-5 rounded-full bg-gray-700 flex items-center justify-center text-[10px] font-bold shrink-0 text-gray-200"
-        aria-hidden="true"
-      >{{ auth.user?.first_name?.[0]?.toUpperCase() || auth.user?.username?.[0]?.toUpperCase() || '?' }}</div>
-      <Transition name="fade">
-        <div v-if="ui.sidebarOpen" class="flex-1 min-w-0">
-          <p class="text-[11px] font-semibold text-gray-200 truncate leading-none">
-            {{ auth.user?.full_name || auth.user?.username }}
-          </p>
-          <p class="text-[9px] text-gray-500 truncate mt-0.5">{{ auth.user?.role_display || 'Staff' }}</p>
-        </div>
-      </Transition>
+    <!-- ── User strip ────────────────────────────────────────────────────── -->
+    <div class="user-strip mx-2 mb-2 rounded-lg shrink-0">
+      <div class="flex items-center gap-2.5 px-2.5 py-2">
+        <div class="user-avatar shrink-0">{{ initials }}</div>
+        <Transition name="fade-slide">
+          <div v-if="ui.sidebarOpen" class="flex-1 min-w-0">
+            <p class="text-[11px] font-semibold text-white truncate leading-tight" style="opacity:0.9">
+              {{ auth.user?.full_name || auth.user?.username }}
+            </p>
+            <p class="text-[9px] text-white truncate mt-0.5 uppercase tracking-wide" style="opacity:0.4">
+              {{ auth.user?.role_display || 'Staff' }}
+            </p>
+          </div>
+        </Transition>
+        <Transition name="fade-slide">
+          <div v-if="ui.sidebarOpen" class="online-dot shrink-0" />
+        </Transition>
+      </div>
     </div>
   </aside>
 </template>
 
-<!-- ── Inline icon renderer ──────────────────────────────────────────────────── -->
-<script>
-const ICON_PATHS = {
-  home:     ['M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6'],
-  pos:      ['M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z'],
-  box:      ['M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4'],
-  device:   ['M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z'],
-  plug:     ['M13 10V3L4 14h7v7l9-11h-7z'],   /* lightning bolt — more recognisable for accessories */
-  receipt:  ['M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z'],
-  calendar: ['M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z'],
-  wrench:   ['M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z', 'M15 12a3 3 0 11-6 0 3 3 0 016 0z'],
-  truck:    ['M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0zM13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10h10zm0 0h6l2-4V10h-8v6z'],
-  users:    ['M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z'],
-  building: ['M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4'],
-  chart:    ['M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'],
-  cog:      ['M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z', 'M15 12a3 3 0 11-6 0 3 3 0 016 0z'],
-}
-
-export default {
-  name: 'NavIcon',
-  props: { icon: String },
-  setup(props, { attrs }) {
-    return () => h('svg', {
-      xmlns: 'http://www.w3.org/2000/svg',
-      fill: 'none',
-      stroke: 'currentColor',
-      'stroke-width': '1.75',
-      'stroke-linecap': 'round',
-      'stroke-linejoin': 'round',
-      viewBox: '0 0 24 24',
-      class: attrs.class,
-      'aria-hidden': 'true',
-    }, (ICON_PATHS[props.icon] || ICON_PATHS.box).map(d =>
-      h('path', { d })
-    ))
-  },
-}
-</script>
-
 <style scoped>
-.fade-enter-active, .fade-leave-active { transition: opacity 0.1s; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
+.sidebar {
+  background: #0d1117;
+  background-image: radial-gradient(ellipse at 50% 0%, rgba(59,130,246,0.08) 0%, transparent 60%);
+  border-right: 1px solid rgba(255,255,255,0.05);
+}
+
+.brand-bar { border-bottom: 1px solid rgba(255,255,255,0.05); }
+.brand-logo { filter: drop-shadow(0 0 8px rgba(59,130,246,0.4)); }
+
+.nav-section-label {
+  padding: 0.75rem 0.5rem 0.25rem;
+  font-size: 0.55rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(255,255,255,0.2);
+  user-select: none;
+}
+.nav-divider {
+  margin: 0.4rem 0.5rem;
+  height: 1px;
+  background: rgba(255,255,255,0.05);
+}
+
+.nav-item, .nav-item-pos, .nav-item-active, .nav-item-pos-active {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0 0.5rem;
+  height: 34px;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: all 150ms ease;
+  margin-bottom: 1px;
+}
+
+.nav-item { color: rgba(255,255,255,0.45); }
+.nav-item:hover { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.85); }
+
+.nav-item-active {
+  background: rgba(59,130,246,0.14);
+  color: #93c5fd;
+  box-shadow: inset 0 0 0 1px rgba(59,130,246,0.2);
+}
+
+.nav-item-pos { color: #60a5fa; }
+.nav-item-pos:hover { background: rgba(59,130,246,0.1); color: #93c5fd; }
+
+.nav-item-pos-active {
+  background: linear-gradient(135deg, rgba(59,130,246,0.25), rgba(99,102,241,0.2));
+  color: white;
+  box-shadow: inset 0 0 0 1px rgba(99,102,241,0.3);
+}
+
+.nav-icon-wrap {
+  width: 20px; height: 20px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+.nav-label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1;
+}
+
+.user-strip {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.user-avatar {
+  width: 26px; height: 26px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #3b82f6, #6366f1);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.625rem; font-weight: 800; color: white;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(59,130,246,0.35);
+}
+.online-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #22c55e;
+  flex-shrink: 0;
+}
+
+.fade-slide-enter-active { transition: all 120ms ease-out; }
+.fade-slide-leave-active { transition: all 80ms ease-in; }
+.fade-slide-enter-from { opacity: 0; transform: translateX(-6px); }
+.fade-slide-leave-to   { opacity: 0; transform: translateX(-4px); }
 </style>

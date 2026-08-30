@@ -39,3 +39,20 @@ __screenshots__/
 
 # Vite
 *.timestamp-*-*.mjs
+
+# Root .env (frontend)
+.env
+
+# ── Python / Django ──────────────────────────────────────────────────────────
+backend/.env
+backend/db.sqlite3
+backend/*.sqlite3
+backend/__pycache__/
+backend/**/__pycache__/
+backend/**/*.pyc
+backend/**/*.pyo
+backend/staticfiles/
+backend/media/
+backend/.pytest_cache/
+backend/htmlcov/
+backend/.coverage
