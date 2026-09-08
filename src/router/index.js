@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
 // ── Lazy-loaded route components ───────────────────────────────────────────────
+const LoginView = () => import('@/views/auth/LoginView.vue')
 const DashboardView = () => import('@/views/dashboard/DashboardView.vue')
 
 // POS
@@ -82,6 +83,12 @@ const AuditLogView = () => import('@/views/settings/AuditLogView.vue')
 
 // ── Route definitions ──────────────────────────────────────────────────────────
 const routes = [
+    {
+        path: '/login',
+        name: 'login',
+        component: LoginView,
+        meta: { title: 'Sign In' },
+    },
     {
         path: '/',
         redirect: '/dashboard',
@@ -246,9 +253,20 @@ export const router = createRouter({
 })
 
 // ── Navigation guard ───────────────────────────────────────────────────────────
-router.beforeEach(async (to, _from, next) => {
-    document.title = to.meta.title ? `${to.meta.title} — DEVNEST` : 'DEVNEST'
-    next()
+import { useAuthStore } from '@/stores/auth'
+
+router.beforeEach((to, _from, next) => {
+    document.title = to.meta.title ? `${to.meta.title} — My Phone ERP` : 'My Phone ERP'
+
+    const auth = useAuthStore()
+
+    if (to.meta.requiresAuth && !auth.isLoggedIn) {
+        next({ path: '/login', query: { redirect: to.fullPath } })
+    } else if (to.name === 'login' && auth.isLoggedIn) {
+        next('/dashboard')
+    } else {
+        next()
+    }
 })
 
 export default router

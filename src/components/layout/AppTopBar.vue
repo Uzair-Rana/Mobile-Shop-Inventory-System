@@ -63,7 +63,7 @@ onUnmounted(() => document.removeEventListener('mousedown', handleOutsideClick))
 
     <!-- Page title with breadcrumb style -->
     <div class="flex items-center gap-2 flex-1 min-w-0">
-      <span class="text-gray-300 text-xs hidden sm:block">DEVNEST</span>
+      <span class="text-gray-300 text-xs hidden sm:block font-semibold">My Phone</span>
       <span class="text-gray-400 text-xs hidden sm:block">/</span>
       <h1 class="topbar-title truncate">{{ title }}</h1>
     </div>
@@ -209,26 +209,20 @@ onUnmounted(() => document.removeEventListener('mousedown', handleOutsideClick))
   background: linear-gradient(180deg, transparent, #e2e8f0, transparent);
 }
 
-/* POS button */
+/* POS button — brand red */
 .pos-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.35rem 0.75rem;
-  border-radius: 8px;
-  background: linear-gradient(135deg, #3b82f6, #2563eb);
-  color: white;
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-decoration: none;
-  letter-spacing: 0.02em;
+  display: inline-flex; align-items: center; gap: .35rem;
+  padding: .35rem .75rem; border-radius: 8px;
+  background: linear-gradient(135deg, #e11d48, #be123c);
+  color: white; font-size: .75rem; font-weight: 700;
+  text-decoration: none; letter-spacing: .02em;
   transition: all 150ms;
-  box-shadow: 0 2px 8px rgba(37,99,235,0.3), inset 0 1px 0 rgba(255,255,255,0.15);
+  box-shadow: 0 2px 8px rgba(190,18,60,.35), inset 0 1px 0 rgba(255,255,255,.15);
 }
 .pos-btn:hover {
-  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  background: linear-gradient(135deg, #be123c, #9f1239);
   transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(37,99,235,0.4);
+  box-shadow: 0 4px 14px rgba(190,18,60,.45);
 }
 .pos-kbd {
   font-size: 0.55rem;
@@ -258,15 +252,11 @@ onUnmounted(() => document.removeEventListener('mousedown', handleOutsideClick))
 }
 
 .user-avatar-sm {
-  width: 26px; height: 26px;
-  border-radius: 8px;
-  background: linear-gradient(135deg, #3b82f6, #6366f1);
-  color: white;
-  font-size: 0.6rem;
-  font-weight: 800;
+  width: 26px; height: 26px; border-radius: 8px;
+  background: linear-gradient(135deg, #e11d48, #9f1239);
+  color: white; font-size: .6rem; font-weight: 800;
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 1px 4px rgba(59,130,246,0.3);
-  flex-shrink: 0;
+  box-shadow: 0 1px 4px rgba(225,29,72,.35); flex-shrink: 0;
 }
 
 /* Dropdown */
@@ -289,15 +279,11 @@ onUnmounted(() => document.removeEventListener('mousedown', handleOutsideClick))
   padding: 0.875rem 1rem 0.625rem;
 }
 .user-avatar-lg {
-  width: 36px; height: 36px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #3b82f6, #6366f1);
-  color: white;
-  font-size: 0.75rem;
-  font-weight: 800;
+  width: 36px; height: 36px; border-radius: 10px;
+  background: linear-gradient(135deg, #e11d48, #9f1239);
+  color: white; font-size: .75rem; font-weight: 800;
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 2px 8px rgba(59,130,246,0.3);
-  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(225,29,72,.35); flex-shrink: 0;
 }
 .user-dropdown-role {
   display: flex;

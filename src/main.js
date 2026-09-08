@@ -14,14 +14,15 @@ async function startMSW() {
             onUnhandledRequest: 'bypass',
             serviceWorker: { url: '/mockServiceWorker.js' },
         })
+        console.info('[MSW] Mock API active — VITE_USE_MOCK=true')
     } catch (e) {
         console.warn('[MSW] Failed to start mock worker, continuing without it:', e)
     }
 }
 
 async function bootstrap() {
-    // Start mock API (only in dev; errors are non-fatal)
-    if (import.meta.env.DEV) {
+    // Only start mock API when explicitly enabled
+    if (import.meta.env.VITE_USE_MOCK === 'true') {
         await startMSW()
     }
 
@@ -31,7 +32,6 @@ async function bootstrap() {
     app.use(pinia)
     app.use(router)
 
-    // Must be called AFTER pinia is registered
     const auth = useAuthStore()
     const sync = useSyncStore()
 
@@ -48,7 +48,6 @@ async function bootstrap() {
 
 bootstrap().catch(err => {
     console.error('[Bootstrap] Fatal error, mounting bare app:', err)
-    // Last resort — mount without auth/MSW so at least something renders
     const app = createApp(App)
     app.use(createPinia())
     app.use(router)

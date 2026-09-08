@@ -1,8 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { PERMISSIONS } from '@/utils/constants'
-import { userFixtures } from '@/api/mock/db/fixtures/users'
-import { branchFixtures } from '@/api/mock/db/fixtures/branches'
+import { authApi } from '@/api/auth'
 
 export const useAuthStore = defineStore('auth', () => {
     const user = ref(null)
@@ -13,53 +11,34 @@ export const useAuthStore = defineStore('auth', () => {
     const isLoggedIn = computed(() => !!token.value && !!user.value)
     const permissions = computed(() => new Set(user.value?.permissions || []))
 
-    const activeBranch = computed(() => {
-        if (!user.value) return null
-        const branchId = user.value.branches?.[0] || 1
-        return branchFixtures.find(b => b.id === branchId) || branchFixtures[0]
-    })
-
     function hasPermission(perm) {
         if (!user.value) return false
         if (user.value.is_superuser) return true
         return permissions.value.has(perm)
     }
 
-    const canViewCost = computed(() => hasPermission(PERMISSIONS.VIEW_COST))
-    const canViewProfit = computed(() => hasPermission(PERMISSIONS.VIEW_PROFIT))
-    const canVoidInvoices = computed(() => hasPermission(PERMISSIONS.VOID_INVOICES))
-    const canManageUsers = computed(() => hasPermission(PERMISSIONS.MANAGE_USERS))
-    const canManageDiscounts = computed(() => hasPermission(PERMISSIONS.MANAGE_DISCOUNTS))
+    const canViewCost = computed(() => hasPermission('view_cost'))
+    const canViewProfit = computed(() => hasPermission('view_profit'))
+    const canVoidInvoices = computed(() => hasPermission('void_invoices'))
+    const canManageUsers = computed(() => hasPermission('manage_users'))
+    const canManageDiscounts = computed(() => hasPermission('discount_override'))
 
-    /** Mock login — checks against userFixtures */
     async function login(credentials) {
         loading.value = true
         error.value = null
         try {
-            // Simulate network delay
-            await new Promise(r => setTimeout(r, 200))
+            const { data } = await authApi.login(credentials)
 
-            const found = userFixtures.find(u =>
-                u.username === credentials.username &&
-                u.password === credentials.password &&
-                u.is_active !== false
-            )
+            token.value = data.token
+            localStorage.setItem('devnest_token', data.token)
+            user.value = data.user
+            localStorage.setItem('devnest_user', JSON.stringify(data.user))
 
-            if (!found) {
-                const err = new Error('Invalid credentials')
-                err.displayMessage = 'Invalid username or password.'
-                throw err
+            // Persist first branch for X-Branch-ID header
+            const firstBranch = data.user?.branches?.[0]
+            if (firstBranch) {
+                localStorage.setItem('devnest_branch_id', String(firstBranch))
             }
-
-            const mockToken = `mock_token_${found.id}_${Date.now()}`
-            token.value = mockToken
-            localStorage.setItem('devnest_token', mockToken)
-
-            // Store user without password
-            const { password: _pw, ...safeUser } = found
-            user.value = safeUser
-            localStorage.setItem('devnest_user', JSON.stringify(safeUser))
-
         } catch (e) {
             error.value = e.displayMessage || 'Login failed'
             throw e
@@ -68,51 +47,49 @@ export const useAuthStore = defineStore('auth', () => {
         }
     }
 
-    /** Switch active mock user (for demo role switcher) */
-    function switchUser(userId) {
-        const found = userFixtures.find(u => u.id === Number(userId))
-        if (!found) return
-        const { password: _pw, ...safeUser } = found
-        user.value = safeUser
-        localStorage.setItem('devnest_user', JSON.stringify(safeUser))
-        const mockToken = `mock_token_${found.id}_${Date.now()}`
-        token.value = mockToken
-        localStorage.setItem('devnest_token', mockToken)
-    }
-
     async function fetchMe() {
-        // In mock mode, restore from localStorage or auto-login as first user
-        const stored = localStorage.getItem('devnest_user')
-        if (stored) {
-            try { user.value = JSON.parse(stored) } catch { /* ignore */ }
-        }
-        // No stored session — auto-login as superuser for demo
-        if (!user.value) {
-            const { password: _pw, ...safeUser } = userFixtures[0]
-            user.value = safeUser
-            const mockToken = `mock_token_${safeUser.id}_${Date.now()}`
-            token.value = mockToken
-            localStorage.setItem('devnest_token', mockToken)
-            localStorage.setItem('devnest_user', JSON.stringify(safeUser))
+        try {
+            const { data } = await authApi.me()
+            user.value = data
+            localStorage.setItem('devnest_user', JSON.stringify(data))
+        } catch {
+            // Token expired or invalid — clear session
+            token.value = null
+            user.value = null
+            localStorage.removeItem('devnest_token')
+            localStorage.removeItem('devnest_user')
+            localStorage.removeItem('devnest_branch_id')
         }
     }
 
     async function logout() {
+        try {
+            await authApi.logout()
+        } catch { /* ignore — clear locally regardless */ }
         token.value = null
         user.value = null
         localStorage.removeItem('devnest_token')
         localStorage.removeItem('devnest_user')
+        localStorage.removeItem('devnest_branch_id')
     }
 
     async function init() {
-        // Always ensure a user is set — auto-login if nothing in storage
-        try { await fetchMe() } catch { /* ignore */ }
+        if (!token.value) return   // No stored token — stay on login page
+
+        // Restore user from localStorage instantly (avoids flash)
+        const stored = localStorage.getItem('devnest_user')
+        if (stored) {
+            try { user.value = JSON.parse(stored) } catch { /* ignore */ }
+        }
+
+        // Then validate with the server in the background
+        await fetchMe()
     }
 
     return {
         user, token, loading, error,
-        isLoggedIn, permissions, activeBranch,
+        isLoggedIn, permissions,
         canViewCost, canViewProfit, canVoidInvoices, canManageUsers, canManageDiscounts,
-        hasPermission, login, logout, fetchMe, init, switchUser,
+        hasPermission, login, logout, fetchMe, init,
     }
 })

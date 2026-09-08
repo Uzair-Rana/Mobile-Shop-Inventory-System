@@ -1,6 +1,7 @@
 /**
  * Central Axios instance for DEVNEST SYSTEM.
  * - Attaches auth token to every request
+ * - Injects X-Branch-ID from branchStore
  * - Handles 401 → logout redirect
  * - Normalises DRF paginated responses
  * - Broadcasts pending-request count so SyncIndicator can show activity
@@ -25,8 +26,14 @@ function notifyPending() { _listeners.forEach(cb => cb(_pendingRequests)) }
 
 // ── Request interceptor ────────────────────────────────────────────────────────
 client.interceptors.request.use((config) => {
+    // Auth token
     const token = localStorage.getItem('devnest_token')
     if (token) config.headers.Authorization = `Token ${token}`
+
+    // Branch scoping — read active branch from localStorage to avoid circular Pinia imports
+    const branchId = localStorage.getItem('devnest_branch_id')
+    if (branchId) config.headers['X-Branch-ID'] = branchId
+
     _pendingRequests++
     notifyPending()
     return config
@@ -50,8 +57,9 @@ client.interceptors.response.use(
         if (error.response?.status === 401) {
             localStorage.removeItem('devnest_token')
             localStorage.removeItem('devnest_user')
-            if (!window.location.pathname.includes('/dashboard')) {
-                window.location.href = '/'
+            localStorage.removeItem('devnest_branch_id')
+            if (!window.location.pathname.includes('/login')) {
+                window.location.href = '/login'
             }
         }
         return Promise.reject(normaliseError(error))

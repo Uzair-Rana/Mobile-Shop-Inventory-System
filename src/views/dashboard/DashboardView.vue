@@ -89,7 +89,7 @@ function repairStatusObj(val) {
       <div>
         <h1 class="dash-greeting">
           Good {{ new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening' }},
-          <span class="text-blue-600">{{ auth.user?.first_name || auth.user?.username }}</span> 👋
+          <span class="gradient-brand">{{ auth.user?.first_name || auth.user?.username }}</span> 👋
         </h1>
         <p class="dash-date">{{ todayLabel }}</p>
       </div>
@@ -518,22 +518,16 @@ function repairStatusObj(val) {
 }
 
 .view-all-link {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #3b82f6;
-  text-decoration: none;
-  text-transform: none;
-  letter-spacing: 0;
-  transition: color 120ms;
+  font-size: .75rem; font-weight: 600;
+  color: #e11d48; text-decoration: none;
+  text-transform: none; letter-spacing: 0; transition: color 120ms;
 }
-.view-all-link:hover { color: #1d4ed8; }
+.view-all-link:hover { color: #9f1239; }
 
 .inv-link {
   font-family: ui-monospace, monospace;
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: #3b82f6;
-  text-decoration: none;
+  font-size: .75rem; font-weight: 700;
+  color: #e11d48; text-decoration: none;
 }
 .inv-link:hover { text-decoration: underline; }
 

@@ -1,28 +1,27 @@
 /**
- * POS Cart store — in-memory, no API calls.
- * Multi-tender payments, trade-in support.
+ * POS Cart store — uses real salesApi for checkout.
+ * Multi-tender payments and trade-in support.
  */
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { useMockDataStore } from './mockData'
+import { salesApi } from '@/api/sales'
 import { useUiStore } from './ui'
 
 export const useCartStore = defineStore('cart', () => {
-    const mock = useMockDataStore()
     const ui = useUiStore()
 
     // ── State ──────────────────────────────────────────────────────────────────
     const items = ref([])
     const customer = ref(null)
     const notes = ref('')
-    const tenders = ref([])       // [{ method, amount }]
-    const tradeIn = ref(null)     // { imei, device_name, accepted_value }
+    const tenders = ref([])           // [{ method, amount }]
+    const tradeIn = ref(null)         // { unit_id, imei, device_name, accepted_value }
     const invoiceDiscount = ref(0)
     const taxRate = ref(0)
     const submitting = ref(false)
     const lastInvoice = ref(null)
 
-    // Legacy compat: single payment method for old code paths
+    // Legacy compat
     const paymentMethod = computed(() => tenders.value[0]?.method || 'cash')
     const amountReceived = computed(() => totalTendered.value)
 
@@ -42,7 +41,7 @@ export const useCartStore = defineStore('cart', () => {
     )
 
     const tradeInValue = computed(() =>
-        tradeIn.value ? (tradeIn.value.accepted_value || 0) : 0
+        tradeIn.value ? (Number(tradeIn.value.accepted_value) || 0) : 0
     )
 
     const grandTotal = computed(() =>
@@ -70,10 +69,7 @@ export const useCartStore = defineStore('cart', () => {
     function addItem(product) {
         if (product.imei) {
             const exists = items.value.find(i => i.imei === product.imei)
-            if (exists) {
-                ui.toastWarn(`IMEI ${product.imei} is already in the cart`)
-                return
-            }
+            if (exists) { ui.toastWarn?.(`IMEI ${product.imei} already in cart`); return }
             items.value.push({
                 id: `unit_${product.unit_id}`,
                 type: 'unit',
@@ -109,9 +105,7 @@ export const useCartStore = defineStore('cart', () => {
         }
     }
 
-    function removeItem(id) {
-        items.value = items.value.filter(i => i.id !== id)
-    }
+    function removeItem(id) { items.value = items.value.filter(i => i.id !== id) }
 
     function updateQty(id, qty) {
         const item = items.value.find(i => i.id === id)
@@ -130,31 +124,17 @@ export const useCartStore = defineStore('cart', () => {
 
     // ── Tender actions ─────────────────────────────────────────────────────────
 
-    function addTender(method, amount) {
-        tenders.value.push({ method, amount: Number(amount) || 0 })
-    }
-
-    function removeTender(idx) {
-        tenders.value.splice(idx, 1)
-    }
-
-    function clearTenders() {
-        tenders.value = []
-    }
-
+    function addTender(method, amount) { tenders.value.push({ method, amount: Number(amount) || 0 }) }
+    function removeTender(idx) { tenders.value.splice(idx, 1) }
+    function clearTenders() { tenders.value = [] }
     function setTenderQuick(method, amount) {
         tenders.value = [{ method, amount: Number(amount) || grandTotal.value }]
     }
 
     // ── Trade-in ───────────────────────────────────────────────────────────────
 
-    function setTradeIn(data) {
-        tradeIn.value = data
-    }
-
-    function clearTradeIn() {
-        tradeIn.value = null
-    }
+    function setTradeIn(data) { tradeIn.value = data }
+    function clearTradeIn() { tradeIn.value = null }
 
     // ── Customer ───────────────────────────────────────────────────────────────
 
@@ -171,67 +151,72 @@ export const useCartStore = defineStore('cart', () => {
         lastInvoice.value = null
     }
 
-    // ── Checkout — purely in-memory ────────────────────────────────────────────
+    // ── Checkout — calls Django backend ───────────────────────────────────────
 
     async function checkout() {
         if (items.value.length === 0) {
-            ui.toastWarn('Cart is empty')
+            ui.toastWarn?.('Cart is empty')
             return null
         }
         submitting.value = true
         try {
-            await new Promise(r => setTimeout(r, 150))
+            // Build DRF-compatible payload
+            const lines = items.value.map(item => {
+                const lineTotal = item.price * item.qty
+                const disc = item.discount_abs > 0
+                    ? item.discount_abs
+                    : lineTotal * (item.discount_pct / 100)
+                return {
+                    product_type: item.type === 'unit' ? 'unit' : 'accessory',
+                    product_id: item.unit_id || item.product_id,
+                    product_name: item.name,
+                    sku: item.sku || '',
+                    imei: item.imei || '',
+                    qty: item.qty,
+                    unit_price: item.price.toFixed(2),
+                    discount: disc.toFixed(2),
+                    line_total: (lineTotal - disc).toFixed(2),
+                }
+            })
 
-            const today = new Date().toISOString()
-            const invNum = `INV-${String(mock.invoices.length + 1).padStart(4, '0')}`
-
-            const lines = items.value.map((item, idx) => ({
-                id: idx + 1,
-                product_name: item.name,
-                type: item.type,
-                unit_id: item.unit_id,
-                imei: item.imei || null,
-                qty: item.qty,
-                unit_price: item.price,
-                discount_abs: item.discount_abs,
-                discount_pct: item.discount_pct,
-                line_total: item.price * item.qty - (item.discount_abs > 0 ? item.discount_abs : item.price * item.qty * item.discount_pct / 100),
-            }))
-
-            const invoice = {
-                invoice_number: invNum,
-                customer_id: customer.value?.id || null,
-                customer_name: customer.value?.name || null,
-                status: 'paid',
-                payment_method: tenders.value.length === 1 ? tenders.value[0].method : 'split',
-                grand_total: grandTotal.value,
-                subtotal: subtotal.value,
-                tax_amount: taxAmount.value,
-                invoice_discount: invoiceDiscount.value,
-                amount_paid: Math.min(totalTendered.value, grandTotal.value),
-                balance_due: remainingDue.value,
-                change_amount: changeAmount.value,
-                amount_received: totalTendered.value,
-                created_at: today,
-                line_count: lines.length,
+            const payload = {
+                customer: customer.value?.id || null,
+                customer_name: customer.value?.name || 'Walk-in',
+                status: remainingDue.value <= 0 ? 'paid' : 'partially_paid',
+                payment_method: tenders.value.length === 1 ? tenders.value[0].method : 'cash',
+                subtotal: subtotal.value.toFixed(2),
+                discount_amount: invoiceDiscount.value.toFixed(2),
+                tax_amount: taxAmount.value.toFixed(2),
+                trade_in_value: tradeInValue.value.toFixed(2),
+                trade_in_unit_id: tradeIn.value?.unit_id || null,
+                grand_total: grandTotal.value.toFixed(2),
+                amount_paid: Math.min(totalTendered.value, grandTotal.value).toFixed(2),
+                notes: notes.value,
+                lines,
             }
 
-            const saved = mock.addInvoice(invoice)
-            mock.addInvoiceLines(saved.id, lines)
+            // Create the invoice
+            const { data: invoice } = await salesApi.createInvoice(payload)
 
-            // Update device lifecycle states
-            items.value
-                .filter(i => i.type === 'unit')
-                .forEach(i => {
-                    mock.updateDevice(i.product_id, { lifecycle_state: 'sold' })
-                })
+            // Finalize it immediately (draft → finalized)
+            const { data: finalized } = await salesApi.finalizeInvoice(invoice.id)
 
-            lastInvoice.value = { ...saved, lines }
-            const result = lastInvoice.value
+            // Record each tender as a separate payment if split
+            if (tenders.value.length > 1) {
+                for (const tender of tenders.value) {
+                    await salesApi.addPayment(invoice.id, {
+                        amount: tender.amount.toFixed(2),
+                        method: tender.method,
+                    })
+                }
+            }
+
+            lastInvoice.value = finalized
             clearCart()
-            return result
+            return finalized
+
         } catch (e) {
-            ui.toastError('Checkout failed')
+            ui.toastError?.('Checkout failed: ' + (e.displayMessage || e.message))
             throw e
         } finally {
             submitting.value = false
@@ -241,13 +226,10 @@ export const useCartStore = defineStore('cart', () => {
     return {
         items, customer, notes, tenders, tradeIn,
         invoiceDiscount, taxRate, submitting, lastInvoice,
-        // Legacy compat
         paymentMethod, amountReceived,
-        // Computed
         subtotal, taxAmount, grandTotal,
         totalTendered, remainingDue, changeAmount,
         tradeInValue, itemCount,
-        // Actions
         addItem, removeItem, updateQty, updatePrice, updateDiscount,
         addTender, removeTender, clearTenders, setTenderQuick,
         setTradeIn, clearTradeIn,
