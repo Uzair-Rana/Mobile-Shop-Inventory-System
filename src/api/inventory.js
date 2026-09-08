@@ -31,4 +31,7 @@ export const inventoryApi = {
 
     // Stock alerts
     listLowStock: (params) => client.get('/inventory/low-stock/', { params }),
+
+    // WhatsApp / Excel export
+    exportExcel: (params) => client.get('/inventory/export-excel/', { params }),
 }

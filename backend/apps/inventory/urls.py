@@ -1,6 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views
+from .export_views import export_products_excel
 
 router = DefaultRouter()
 router.register('products',    views.ProductViewSet,  basename='product')
@@ -9,8 +10,9 @@ router.register('categories',  views.CategoryViewSet, basename='category')
 router.register('brands',      views.BrandViewSet,    basename='brand')
 
 urlpatterns = router.urls + [
-    path('scan/',       views.scan_lookup),
-    path('low-stock/',  views.low_stock_view),
+    path('scan/',          views.scan_lookup),
+    path('low-stock/',     views.low_stock_view),
+    path('export-excel/',  export_products_excel),
 
     # Frontend-facing aliases for cleaner URLs
     path('accessories/', views.ProductViewSet.as_view({'get': 'list', 'post': 'create'})),
