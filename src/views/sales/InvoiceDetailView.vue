@@ -11,6 +11,7 @@ import { salesApi } from '@/api/sales'
 import { useUiStore } from '@/stores/ui'
 import { useConfirm } from '@/composables/useConfirm'
 import { usePermissions } from '@/composables/usePermissions'
+import { usePrint } from '@/composables/usePrint'
 import { formatDate, formatDateTime } from '@/utils/date'
 import { formatMoney } from '@/utils/money'
 import { INVOICE_STATUS } from '@/utils/constants'
@@ -19,12 +20,14 @@ import AppButton from '@/components/ui/AppButton.vue'
 import MoneyDisplay from '@/components/ui/MoneyDisplay.vue'
 import AppModal from '@/components/ui/AppModal.vue'
 import AppInput from '@/components/ui/AppInput.vue'
+import InvoicePrintTemplate from '@/components/print/InvoicePrintTemplate.vue'
 
 const route  = useRoute()
 const router = useRouter()
 const ui     = useUiStore()
 const { confirm } = useConfirm()
 const perms  = usePermissions()
+const { printDocument } = usePrint()
 
 const invoice  = ref(null)
 const loading  = ref(true)
@@ -53,6 +56,10 @@ onMounted(async () => {
 
 function statusObj(val) {
   return Object.values(INVOICE_STATUS).find(s => s.value === val) || { label: val, badge: 'badge-gray' }
+}
+
+function handlePrint() {
+  printDocument('invoice-print-template', `Invoice #${invoice.value.invoice_number}`)
 }
 
 // ── Void invoice ──────────────────────────────────────────────────────────────
@@ -152,6 +159,7 @@ async function handleReturn() {
         <!-- Voided/Returned: read-only notice -->
         <span v-if="isVoided || isReturned" class="text-xs text-gray-500 italic">This invoice is {{ invoice.status }} — no further actions available.</span>
 
+        <AppButton variant="secondary" @click="handlePrint">🖨️ Print</AppButton>
         <AppButton variant="ghost" @click="router.back()">← Back</AppButton>
       </div>
     </div>
@@ -227,6 +235,9 @@ async function handleReturn() {
         <AppButton variant="danger" :loading="returning" @click="handleReturn">Process Return</AppButton>
       </template>
     </AppModal>
+
+    <!-- Print template -->
+    <InvoicePrintTemplate v-if="invoice" :invoice="invoice" />
   </div>
   <div v-else class="text-center py-20 text-gray-400">Loading…</div>
 </template>

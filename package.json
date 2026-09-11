@@ -1,12 +1,20 @@
 {
-  "name": "vue.js",
-  "version": "0.0.0",
+  "name": "mobile-shop-erp",
+  "version": "1.0.0",
+  "description": "Mobile Shop ERP - Complete inventory and sales management system",
+  "author": "DEVNEST Dev",
+  "license": "MIT",
   "private": true,
-  "type": "module",
+  "main": "electron/main.js",
+  "homepage": "./",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "electron-dev": "vite build && electron .",
+    "electron-build": "vite build && electron-builder",
+    "electron-pack": "electron-builder --dir",
+    "dist": "vite build && electron-builder -mwl"
   },
   "dependencies": {
     "axios": "^1.20.0",
@@ -22,6 +30,8 @@
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-vue": "^6.0.8",
+    "electron": "^31.0.0",
+    "electron-builder": "^25.0.5",
     "tailwindcss": "^4.3.3",
     "vite": "^8.1.5",
     "vite-plugin-vue-devtools": "^8.1.5"
@@ -33,5 +43,52 @@
     "workerDirectory": [
       "public"
     ]
+  },
+  "build": {
+    "appId": "com.mobileshop.erp",
+    "productName": "Mobile Shop ERP",
+    "directories": {
+      "buildResources": "assets",
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "certificateFile": null,
+      "signingHashAlgorithms": [
+        "sha256"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Mobile Shop ERP",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-portable.${ext}"
+    }
   }
 }

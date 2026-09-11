@@ -1,7 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
 // ── Lazy-loaded route components ───────────────────────────────────────────────
-const LoginView = () => import('@/views/auth/LoginView.vue')
 const DashboardView = () => import('@/views/dashboard/DashboardView.vue')
 
 // POS
@@ -84,32 +83,25 @@ const AuditLogView = () => import('@/views/settings/AuditLogView.vue')
 // ── Route definitions ──────────────────────────────────────────────────────────
 const routes = [
     {
-        path: '/login',
-        name: 'login',
-        component: LoginView,
-        meta: { title: 'Sign In' },
-    },
-    {
         path: '/',
         redirect: '/dashboard',
-        meta: { requiresAuth: true },
     },
     {
         path: '/dashboard',
         name: 'dashboard',
         component: DashboardView,
-        meta: { requiresAuth: true, title: 'Dashboard' },
+        meta: { title: 'Dashboard' },
     },
     {
         path: '/pos',
         name: 'pos',
         component: PosView,
-        meta: { requiresAuth: true, title: 'Point of Sale', fullscreen: true },
+        meta: { title: 'Point of Sale', fullscreen: true },
     },
     // Cash
     {
         path: '/cash',
-        meta: { requiresAuth: true },
+        meta: {},
         children: [
             { path: '', name: 'cash.session', component: CashSessionView, meta: { title: 'Cash Session' } },
             { path: 'expenses', name: 'cash.expenses', component: ExpenseListView, meta: { title: 'Expenses' } },
@@ -118,7 +110,7 @@ const routes = [
     // Transfers
     {
         path: '/transfers',
-        meta: { requiresAuth: true },
+        meta: {},
         children: [
             { path: '', name: 'transfers.list', component: TransferListView, meta: { title: 'Transfers' } },
             { path: ':id', name: 'transfers.detail', component: TransferDetailView, meta: { title: 'Transfer' } },
@@ -128,7 +120,7 @@ const routes = [
     {
         path: '/inventory',
         component: InventoryLayout,
-        meta: { requiresAuth: true },
+        meta: {},
         children: [
             { path: '', redirect: 'products' },
             { path: 'products', name: 'inventory.products', component: ProductListView, meta: { title: 'Products' } },
@@ -145,7 +137,7 @@ const routes = [
     {
         path: '/sales',
         component: SalesLayout,
-        meta: { requiresAuth: true },
+        meta: {},
         children: [
             { path: '', redirect: 'invoices' },
             { path: 'invoices', name: 'sales.invoices', component: InvoiceListView, meta: { title: 'Invoices' } },
@@ -157,7 +149,7 @@ const routes = [
     {
         path: '/repairs',
         component: RepairsLayout,
-        meta: { requiresAuth: true },
+        meta: {},
         children: [
             { path: '', redirect: 'jobs' },
             { path: 'board', name: 'repairs.board', component: RepairBoardView, meta: { title: 'Repair Board' } },
@@ -169,7 +161,7 @@ const routes = [
     // Customers
     {
         path: '/customers',
-        meta: { requiresAuth: true },
+        meta: {},
         children: [
             { path: '', name: 'customers.list', component: CustomerListView, meta: { title: 'Customers' } },
             { path: ':id', name: 'customers.detail', component: CustomerDetailView, meta: { title: 'Customer' } },
@@ -178,7 +170,7 @@ const routes = [
     // Suppliers
     {
         path: '/suppliers',
-        meta: { requiresAuth: true },
+        meta: {},
         children: [
             { path: '', name: 'suppliers.list', component: SupplierListView, meta: { title: 'Suppliers' } },
             { path: ':id', name: 'suppliers.detail', component: SupplierDetailView, meta: { title: 'Supplier' } },
@@ -188,7 +180,7 @@ const routes = [
     {
         path: '/purchases',
         component: PurchasesLayout,
-        meta: { requiresAuth: true },
+        meta: {},
         children: [
             { path: '', redirect: 'orders' },
             { path: 'orders', name: 'purchases.list', component: PurchaseListView, meta: { title: 'Purchase Orders' } },
@@ -200,7 +192,7 @@ const routes = [
     // Installments
     {
         path: '/installments',
-        meta: { requiresAuth: true },
+        meta: {},
         children: [
             { path: '', name: 'installments.list', component: InstallmentListView, meta: { title: 'Installment Plans' } },
             { path: 'new', name: 'installments.new', component: InstallmentPlanBuilderView, meta: { title: 'New Installment Plan' } },
@@ -212,7 +204,7 @@ const routes = [
     {
         path: '/reports',
         component: ReportsLayout,
-        meta: { requiresAuth: true, requiresPermission: 'view_reports' },
+        meta: { requiresPermission: 'view_reports' },
         children: [
             { path: '', redirect: 'sales' },
             { path: 'sales', name: 'reports.sales', component: SalesReportView, meta: { title: 'Sales Report' } },
@@ -231,7 +223,7 @@ const routes = [
     {
         path: '/settings',
         component: SettingsLayout,
-        meta: { requiresAuth: true },
+        meta: {},
         children: [
             { path: '', redirect: 'company' },
             { path: 'company', name: 'settings.company', component: CompanySettingsView, meta: { title: 'Company' } },
@@ -257,16 +249,7 @@ import { useAuthStore } from '@/stores/auth'
 
 router.beforeEach((to, _from, next) => {
     document.title = to.meta.title ? `${to.meta.title} — My Phone ERP` : 'My Phone ERP'
-
-    const auth = useAuthStore()
-
-    if (to.meta.requiresAuth && !auth.isLoggedIn) {
-        next({ path: '/login', query: { redirect: to.fullPath } })
-    } else if (to.name === 'login' && auth.isLoggedIn) {
-        next('/dashboard')
-    } else {
-        next()
-    }
+    next()
 })
 
 export default router

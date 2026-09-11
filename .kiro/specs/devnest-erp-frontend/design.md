@@ -18,7 +18,7 @@ src/
 │   │   ├── index.js          # Mount/unmount MSW worker or in-memory adapter
 │   │   ├── handlers/         # One file per domain (auth, inventory, sales …)
 │   │   │   ├── auth.js
-│   │   │   ├── inventory.js
+│   │   │   ├── inventory.js  
 │   │   │   ├── sales.js
 │   │   │   ├── repairs.js
 │   │   │   ├── installments.js

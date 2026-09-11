@@ -1,95 +1,61 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { authApi } from '@/api/auth'
 
 export const useAuthStore = defineStore('auth', () => {
-    const user = ref(null)
-    const token = ref(localStorage.getItem('devnest_token') || null)
+    // ── No login gate: auto-set a superuser session so the app loads directly ──
+    const _defaultUser = {
+        id: 1,
+        username: 'admin',
+        full_name: 'Administrator',
+        role_display: 'Admin',
+        is_superuser: true,
+        permissions: [],   // superuser bypasses all checks
+        branches: [1],
+    }
+
+    const user = ref(JSON.parse(localStorage.getItem('devnest_user') || 'null') || _defaultUser)
+    const token = ref(localStorage.getItem('devnest_token') || 'local-session')
     const loading = ref(false)
     const error = ref(null)
 
-    const isLoggedIn = computed(() => !!token.value && !!user.value)
+    // Always logged in — no redirect to /login
+    const isLoggedIn = computed(() => true)
     const permissions = computed(() => new Set(user.value?.permissions || []))
 
     function hasPermission(perm) {
-        if (!user.value) return false
+        if (!user.value) return true       // fail-open locally
         if (user.value.is_superuser) return true
         return permissions.value.has(perm)
     }
 
-    const canViewCost = computed(() => hasPermission('view_cost'))
-    const canViewProfit = computed(() => hasPermission('view_profit'))
-    const canVoidInvoices = computed(() => hasPermission('void_invoices'))
-    const canManageUsers = computed(() => hasPermission('manage_users'))
-    const canManageDiscounts = computed(() => hasPermission('discount_override'))
+    const canViewCost = computed(() => true)
+    const canViewProfit = computed(() => true)
+    const canVoidInvoices = computed(() => true)
+    const canManageUsers = computed(() => true)
+    const canManageDiscounts = computed(() => true)
 
-    async function login(credentials) {
-        loading.value = true
-        error.value = null
-        try {
-            const { data } = await authApi.login(credentials)
-
-            token.value = data.token
-            localStorage.setItem('devnest_token', data.token)
-            user.value = data.user
-            localStorage.setItem('devnest_user', JSON.stringify(data.user))
-
-            // Persist first branch for X-Branch-ID header
-            const firstBranch = data.user?.branches?.[0]
-            if (firstBranch) {
-                localStorage.setItem('devnest_branch_id', String(firstBranch))
-            }
-        } catch (e) {
-            error.value = e.displayMessage || 'Login failed'
-            throw e
-        } finally {
-            loading.value = false
+    async function init() {
+        // Persist defaults so X-Branch-ID gets set
+        if (!localStorage.getItem('devnest_user')) {
+            localStorage.setItem('devnest_user', JSON.stringify(_defaultUser))
         }
-    }
-
-    async function fetchMe() {
-        try {
-            const { data } = await authApi.me()
-            user.value = data
-            localStorage.setItem('devnest_user', JSON.stringify(data))
-        } catch {
-            // Token expired or invalid — clear session
-            token.value = null
-            user.value = null
-            localStorage.removeItem('devnest_token')
-            localStorage.removeItem('devnest_user')
-            localStorage.removeItem('devnest_branch_id')
+        if (!localStorage.getItem('devnest_token')) {
+            localStorage.setItem('devnest_token', 'local-session')
+        }
+        if (!localStorage.getItem('devnest_branch_id')) {
+            localStorage.setItem('devnest_branch_id', '1')
         }
     }
 
     async function logout() {
-        try {
-            await authApi.logout()
-        } catch { /* ignore — clear locally regardless */ }
-        token.value = null
-        user.value = null
-        localStorage.removeItem('devnest_token')
-        localStorage.removeItem('devnest_user')
-        localStorage.removeItem('devnest_branch_id')
-    }
-
-    async function init() {
-        if (!token.value) return   // No stored token — stay on login page
-
-        // Restore user from localStorage instantly (avoids flash)
-        const stored = localStorage.getItem('devnest_user')
-        if (stored) {
-            try { user.value = JSON.parse(stored) } catch { /* ignore */ }
-        }
-
-        // Then validate with the server in the background
-        await fetchMe()
+        // No-op in no-login mode — just reload
+        window.location.reload()
     }
 
     return {
         user, token, loading, error,
         isLoggedIn, permissions,
         canViewCost, canViewProfit, canVoidInvoices, canManageUsers, canManageDiscounts,
-        hasPermission, login, logout, fetchMe, init,
+        hasPermission, init, logout,
     }
 })

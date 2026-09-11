@@ -2,20 +2,26 @@
 import { ref, onMounted, watch } from 'vue'
 import { salesApi } from '@/api/sales'
 import { usePagination } from '@/composables/usePagination'
+import { usePrint } from '@/composables/usePrint'
 import { formatDate, formatDateTime } from '@/utils/date'
 import { INVOICE_STATUS } from '@/utils/constants'
 import AppTable from '@/components/ui/AppTable.vue'
 import AppBadge from '@/components/ui/AppBadge.vue'
 import AppPagination from '@/components/ui/AppPagination.vue'
+import AppButton from '@/components/ui/AppButton.vue'
 import MoneyDisplay from '@/components/ui/MoneyDisplay.vue'
+import InvoicePrintTemplate from '@/components/print/InvoicePrintTemplate.vue'
 
-const pg       = usePagination({ pageSize: 25 })
-const invoices = ref([])
-const loading  = ref(false)
-const search   = ref('')
-const status   = ref('')
-const dateFrom = ref('')
-const dateTo   = ref('')
+const pg              = usePagination({ pageSize: 25 })
+const invoices        = ref([])
+const loading         = ref(false)
+const search          = ref('')
+const status          = ref('')
+const dateFrom        = ref('')
+const dateTo          = ref('')
+const selectedInvoice = ref(null)
+const printing        = ref(false)
+const { printDocument } = usePrint()
 
 const STATUS_OPTIONS = [
   { value: '', label: 'All' },
@@ -30,6 +36,7 @@ const columns = [
   { key: 'total',    label: 'Total',    align: 'right' },
   { key: 'paid',     label: 'Paid',     align: 'right' },
   { key: 'status',   label: 'Status' },
+  { key: 'actions',  label: '',         align: 'right' },
 ]
 
 async function load() {
@@ -53,6 +60,20 @@ onMounted(load)
 function statusObj(val) {
   return Object.values(INVOICE_STATUS).find(s => s.value === val) || { label: val, badge: 'badge-gray' }
 }
+
+async function handlePrint(invoiceId) {
+  printing.value = true
+  try {
+    const res = await salesApi.getInvoice(invoiceId)
+    selectedInvoice.value = res.data
+    await new Promise(resolve => setTimeout(resolve, 0))
+    printDocument('invoice-print-template', `Invoice #${res.data.invoice_number}`)
+  } catch (e) {
+    console.error('Failed to load invoice for printing', e)
+  } finally {
+    printing.value = false
+  }
+}
 </script>
 
 <template>
@@ -71,9 +92,9 @@ function statusObj(val) {
     </div>
 
     <AppTable :columns="columns" :loading="loading" empty-message="No invoices found">
-      <tr v-for="inv in invoices" :key="inv.id" class="cursor-pointer">
+      <tr v-for="inv in invoices" :key="inv.id">
         <td class="px-3 py-2.5">
-          <RouterLink :to="`/sales/invoices/${inv.id}`" class="font-medium text-blue-700 hover:underline">
+          <RouterLink :to="`/sales/invoices/${inv.id}`" class="font-medium text-blue-700 hover:underline cursor-pointer">
             #{{ inv.invoice_number }}
           </RouterLink>
         </td>
@@ -83,8 +104,21 @@ function statusObj(val) {
         <td class="px-3 py-2.5 text-right"><MoneyDisplay :value="inv.grand_total" /></td>
         <td class="px-3 py-2.5 text-right"><MoneyDisplay :value="inv.amount_paid" /></td>
         <td class="px-3 py-2.5"><AppBadge :status="statusObj(inv.status)" /></td>
+        <td class="px-3 py-2.5 text-right">
+          <button
+            @click="handlePrint(inv.id)"
+            :disabled="printing"
+            class="text-gray-600 hover:text-gray-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            :title="printing ? 'Preparing to print...' : 'Print invoice'"
+          >
+            {{ printing ? '⏳' : '🖨️' }}
+          </button>
+        </td>
       </tr>
     </AppTable>
+
+    <!-- Print template -->
+    <InvoicePrintTemplate v-if="selectedInvoice" :invoice="selectedInvoice" />
 
     <AppPagination v-bind="{ currentPage: pg.currentPage.value, totalPages: pg.totalPages.value, totalCount: pg.totalCount.value, pageSize: pg.pageSize.value }" @page="pg.goTo" />
   </div>

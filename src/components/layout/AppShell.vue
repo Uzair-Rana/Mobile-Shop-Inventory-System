@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import AppSidebar from './AppSidebar.vue'
-import AppTopBar from './AppTopBar.vue'
+import AppTopBar  from './AppTopBar.vue'
 
 const route     = useRoute()
 const pageTitle = computed(() => route.meta?.title || 'Dashboard')
@@ -27,7 +27,7 @@ const pageTitle = computed(() => route.meta?.title || 'Dashboard')
   display: flex;
   height: 100vh;
   overflow: hidden;
-  background: #f0f4f8;
+  background: #f1f3f6;
 }
 
 .shell-main {
@@ -36,6 +36,7 @@ const pageTitle = computed(() => route.meta?.title || 'Dashboard')
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
 }
 
 .shell-content {
@@ -45,13 +46,13 @@ const pageTitle = computed(() => route.meta?.title || 'Dashboard')
 }
 
 .shell-inner {
-  padding: 1.25rem 1.5rem;
-  max-width: 1600px;
-  animation: page-in 200ms ease-out;
+  padding: 1.75rem 2rem;      /* more generous — was 1.25rem 1.5rem */
+  max-width: 1680px;
+  animation: page-in 220ms ease-out;
 }
 
 @keyframes page-in {
-  from { opacity: 0; transform: translateY(6px); }
+  from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 </style>
