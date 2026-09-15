@@ -198,6 +198,15 @@ export const useMockDataStore = defineStore('mockData', () => {
         return newExp
     }
 
+    function setExpenseApproval(id, state) {
+        const exp = expenses.value.find(e => e.id === id)
+        if (exp) {
+            exp.approval_state = state
+            exp.approved_at = state === 'approved' ? new Date().toISOString() : null
+        }
+        return exp
+    }
+
     function addTransfer(transfer) {
         const id = ++nextId.transfer
         const newTrf = { ...transfer, id, created_at: new Date().toISOString() }
@@ -281,7 +290,7 @@ export const useMockDataStore = defineStore('mockData', () => {
 
         // Mutations
         addInvoice, addInvoiceLines, voidInvoice,
-        addDevice, updateDevice, addExpense,
+        addDevice, updateDevice, addExpense, setExpenseApproval,
         addTransfer, updateTransfer,
         updateRepair, addRepairLog,
         addAuditLog, updateUser, updateRole,

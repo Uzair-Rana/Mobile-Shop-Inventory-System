@@ -92,9 +92,9 @@ async function handleSave() {
     <AppModal :open="showForm" title="New Customer" size="md" @close="showForm = false; reset()">
       <form class="space-y-4" @submit.prevent="handleSave">
         <AppInput v-model="fields.name"    label="Full Name" :error="errors.name"  required />
-        <AppInput v-model="fields.phone"   label="Phone"     :error="errors.phone" required />
+        <AppInput v-model="fields.phone"   v-restrict="'digits'" label="Phone" inputmode="tel" :error="errors.phone" required />
         <AppInput v-model="fields.email"   label="Email"     type="email" />
-        <AppInput v-model="fields.cnic"    label="CNIC"      hint="Optional — 13 digits" />
+        <AppInput v-model="fields.cnic"    v-restrict="'digits'" label="CNIC" inputmode="numeric" hint="Optional — 13 digits" />
         <AppInput v-model="fields.address" label="Address" />
       </form>
       <template #footer>

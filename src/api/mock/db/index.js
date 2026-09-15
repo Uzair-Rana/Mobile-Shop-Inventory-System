@@ -11,6 +11,8 @@ import { purchaseOrderFixtures, poLineFixtures } from './fixtures/purchases.js'
 import { cashSessionFixtures, cashInflowFixtures, cashOutflowFixtures, expenseFixtures } from './fixtures/cash.js'
 import { transferFixtures } from './fixtures/transfers.js'
 import { roleFixtures, auditLogFixtures } from './fixtures/admin.js'
+import { supplierFixtures } from './fixtures/suppliers.js'
+import { companyFixture, taxFixtures, receiptConfigFixture } from './fixtures/settings.js'
 
 export const db = {
     users: createStore(userFixtures),
@@ -36,6 +38,10 @@ export const db = {
     transfers: createStore(transferFixtures),
     roles: createStore(roleFixtures),
     auditLogs: createStore(auditLogFixtures),
+    suppliers: createStore(supplierFixtures),
+    taxes: createStore(taxFixtures),
+    company: { ...companyFixture },       // singleton
+    receiptConfig: { ...receiptConfigFixture }, // singleton
 }
 
 /** Simple text search across multiple fields */

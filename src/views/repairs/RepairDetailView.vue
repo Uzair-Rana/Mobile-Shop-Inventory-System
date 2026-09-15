@@ -2,9 +2,11 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { repairsApi } from '@/api/repairs'
+import { settingsApi } from '@/api/settings'
 import { useUiStore } from '@/stores/ui'
 import { useConfirm } from '@/composables/useConfirm'
 import { usePermissions } from '@/composables/usePermissions'
+import { usePrint } from '@/composables/usePrint'
 import { formatDate, formatDateTime } from '@/utils/date'
 import { formatMoney } from '@/utils/money'
 import { REPAIR_STATUS } from '@/utils/constants'
@@ -20,8 +22,15 @@ const ui     = useUiStore()
 const { confirm } = useConfirm()
 const perms  = usePermissions()
 
+const { printDocument } = usePrint()
+const shopName = ref('DEVNEST Mobile Shop')
+
 const job     = ref(null)
 const loading = ref(true)
+
+function printToken() {
+  printDocument('repair-token-print', `Repair Token — ${job.value?.job_number || ''}`)
+}
 
 // Status update
 const showStatusModal  = ref(false)
@@ -50,6 +59,10 @@ onMounted(async () => {
   const res = await repairsApi.getJob(route.params.id)
   job.value = res.data
   loading.value = false
+  try {
+    const { data } = await settingsApi.getCompany()
+    if (data?.name) shopName.value = data.name
+  } catch { /* keep default */ }
 })
 
 function statusObj(val) {
@@ -112,11 +125,35 @@ async function handleDeliver() {
         </p>
       </div>
       <div class="flex gap-2 flex-wrap">
+        <AppButton variant="secondary" @click="printToken">🧾 Print Token</AppButton>
         <template v-if="!isDelivered">
           <AppButton variant="secondary" @click="showStatusModal = true">Update Status</AppButton>
           <AppButton variant="primary" @click="showDeliveryModal = true">Deliver Device</AppButton>
         </template>
         <AppButton variant="ghost" @click="router.back()">← Back</AppButton>
+      </div>
+    </div>
+
+    <!-- Hidden repair-token print area -->
+    <div id="repair-token-print" style="display:none">
+      <div style="text-align:center; border-bottom:2px solid #111; padding-bottom:8px; margin-bottom:10px">
+        <div style="font-size:18px; font-weight:800">{{ shopName }}</div>
+        <div style="font-size:12px; color:#555">Repair Service Token</div>
+      </div>
+      <table style="width:100%; font-size:13px; border-collapse:collapse">
+        <tr><td style="padding:4px 0; color:#666">Job #</td><td style="text-align:right; font-weight:700">{{ job.job_number }}</td></tr>
+        <tr><td style="padding:4px 0; color:#666">Date</td><td style="text-align:right">{{ formatDate(job.received_at) }}</td></tr>
+        <tr><td style="padding:4px 0; color:#666">Customer</td><td style="text-align:right">{{ job.customer_name }}</td></tr>
+        <tr><td style="padding:4px 0; color:#666">Phone</td><td style="text-align:right">{{ job.customer_phone }}</td></tr>
+        <tr><td style="padding:4px 0; color:#666">Device</td><td style="text-align:right">{{ job.device_model }}</td></tr>
+        <tr><td style="padding:4px 0; color:#666">IMEI</td><td style="text-align:right; font-family:monospace">{{ job.imei || '—' }}</td></tr>
+        <tr><td style="padding:4px 0; color:#666">Issue</td><td style="text-align:right">{{ job.issue_description }}</td></tr>
+        <tr><td style="padding:4px 0; color:#666">Estimated</td><td style="text-align:right">{{ formatMoney(job.estimated_cost) }}</td></tr>
+        <tr><td style="padding:4px 0; color:#666">Advance</td><td style="text-align:right">{{ formatMoney(job.advance_payment) }}</td></tr>
+        <tr style="border-top:1px solid #ccc"><td style="padding:6px 0; font-weight:700">Balance</td><td style="text-align:right; font-weight:700">{{ formatMoney(balanceDue) }}</td></tr>
+      </table>
+      <div style="margin-top:12px; text-align:center; font-size:11px; color:#777">
+        Please bring this token when collecting your device.
       </div>
     </div>
 

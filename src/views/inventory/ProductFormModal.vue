@@ -23,7 +23,6 @@ const { fields, errors, validate, reset, setValues } = useForm({
   sell_price:    { value: '', required: true, min: 0 },
   cost_price:    { value: '', required: true, min: 0 },
   reorder_level: { value: 5, min: 0 },
-  description:   { value: '' },
 })
 
 watch(() => props.product, (p) => {
@@ -83,13 +82,9 @@ function openWhatsApp() {
       <AppInput v-model="fields.sku"           label="SKU"           :error="errors.sku"        required />
       <AppInput v-model="fields.brand"         label="Brand"         :error="errors.brand" />
       <AppInput v-model="fields.category"      label="Category"      :error="errors.category" />
-      <AppInput v-model="fields.reorder_level" label="Reorder Level" type="number" min="0" />
-      <AppInput v-model="fields.sell_price"    label="Sell Price"    type="number" step="1" prefix="Rs." :error="errors.sell_price" required />
-      <AppInput v-model="fields.cost_price"    label="Cost Price"    type="number" step="1" prefix="Rs." :error="errors.cost_price" required />
-      <div class="col-span-2">
-        <label class="label">Description</label>
-        <textarea v-model="fields.description" class="input" rows="2" />
-      </div>
+      <AppInput v-model="fields.reorder_level" v-restrict="'integer'" label="Reorder Level" inputmode="numeric" />
+      <AppInput v-model="fields.sell_price"    v-restrict="'decimal'" label="Sell Price" inputmode="decimal" prefix="Rs." :error="errors.sell_price" required />
+      <AppInput v-model="fields.cost_price"    v-restrict="'decimal'" label="Cost Price" inputmode="decimal" prefix="Rs." :error="errors.cost_price" required />
     </form>
 
     <template #footer>

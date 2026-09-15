@@ -38,6 +38,15 @@ function approvalBadge(state) {
   return state === 'approved' ? 'badge-green' : state === 'pending' ? 'badge-yellow' : 'badge-red'
 }
 
+function approve(e) {
+  mock.setExpenseApproval(e.id, 'approved')
+  ui.toastSuccess('Expense approved')
+}
+function reject(e) {
+  mock.setExpenseApproval(e.id, 'rejected')
+  ui.toastWarn('Expense rejected')
+}
+
 async function handleSave() {
   if (!form.value.amount || !form.value.category) { ui.toastWarn('Fill required fields'); return }
   saving.value = true
@@ -66,7 +75,7 @@ async function handleSave() {
       <table class="table-base">
         <thead>
           <tr>
-            <th>Date</th><th>Category</th><th>Notes</th><th>Source</th><th>Status</th><th class="text-right">Amount</th>
+            <th>Date</th><th>Category</th><th>Notes</th><th>Source</th><th>Status</th><th class="text-right">Amount</th><th class="text-right">Action</th>
           </tr>
         </thead>
         <tbody>
@@ -79,9 +88,16 @@ async function handleSave() {
               <AppBadge :label="e.approval_state" :variant="approvalBadge(e.approval_state)" />
             </td>
             <td class="px-3 py-2 text-right font-medium"><MoneyDisplay :value="e.amount" /></td>
+            <td class="px-3 py-2 text-right whitespace-nowrap">
+              <template v-if="e.approval_state === 'pending'">
+                <button class="text-xs text-green-600 hover:underline mr-2" @click="approve(e)">Approve</button>
+                <button class="text-xs text-red-500 hover:underline" @click="reject(e)">Reject</button>
+              </template>
+              <span v-else class="text-xs text-gray-400">—</span>
+            </td>
           </tr>
           <tr v-if="!filtered.length">
-            <td colspan="6" class="py-8 text-center text-xs text-gray-400">No expenses found</td>
+            <td colspan="7" class="py-8 text-center text-xs text-gray-400">No expenses found</td>
           </tr>
         </tbody>
       </table>

@@ -4,6 +4,7 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router/index.js'
+import { restrict } from './directives/restrict.js'
 import { useAuthStore } from '@/stores/auth'
 import { useSyncStore } from '@/stores/sync'
 
@@ -31,6 +32,7 @@ async function bootstrap() {
 
     app.use(pinia)
     app.use(router)
+    app.directive('restrict', restrict)
 
     const auth = useAuthStore()
     const sync = useSyncStore()
@@ -51,5 +53,6 @@ bootstrap().catch(err => {
     const app = createApp(App)
     app.use(createPinia())
     app.use(router)
+    app.directive('restrict', restrict)
     app.mount('#app')
 })

@@ -1,14 +1,25 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useMockDataStore } from '@/stores/mockData'
 import { formatMoney } from '@/utils/money'
+import { usePrint } from '@/composables/usePrint'
+import { settingsApi } from '@/api/settings'
 import AppButton from '@/components/ui/AppButton.vue'
 
 const mock = useMockDataStore()
+const { printDocument } = usePrint()
 
 const showFields = ref({ imei: true, model: true, price: true, pta: false, brand: true })
 const selectedIds = ref(new Set())
 const search = ref('')
+const shopName = ref('DEVNEST Mobile Shop')
+
+onMounted(async () => {
+  try {
+    const { data } = await settingsApi.getCompany()
+    if (data?.name) shopName.value = data.name
+  } catch { /* keep default */ }
+})
 
 const devices = computed(() => {
   const q = search.value.toLowerCase()
@@ -35,7 +46,8 @@ const selectedDevices = computed(() =>
 )
 
 function printLabels() {
-  window.print()
+  // Print ONLY the isolated label sheet (with shop name) — not the whole app page.
+  printDocument('barcode-print-area', `${shopName.value} — Barcode Labels`)
 }
 </script>
 
@@ -106,6 +118,27 @@ function printLabels() {
             </div>
           </div>
           <p v-if="selectedDevices.length === 0" class="text-center text-sm text-gray-400 py-8">Select devices to preview labels</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hidden isolated print area — only this is sent to the printer -->
+    <div id="barcode-print-area" style="display:none">
+      <div style="text-align:center; margin-bottom:14px; border-bottom:2px solid #111; padding-bottom:8px">
+        <div style="font-size:18px; font-weight:800">{{ shopName }}</div>
+        <div style="font-size:11px; color:#666">Product Labels</div>
+      </div>
+      <div style="display:flex; flex-wrap:wrap; gap:8px">
+        <div
+          v-for="d in selectedDevices"
+          :key="'p-' + d.id"
+          style="width:31%; border:1px solid #999; border-radius:6px; padding:8px; box-sizing:border-box"
+        >
+          <div v-if="showFields.brand" style="font-weight:700; font-size:13px">{{ d.brand }}</div>
+          <div v-if="showFields.model" style="font-size:12px">{{ d.model }}</div>
+          <div v-if="showFields.imei" style="font-family:monospace; font-size:10px; color:#444">{{ d.imei1 }}</div>
+          <div v-if="showFields.pta" style="font-size:10px">{{ d.pta_status }}</div>
+          <div v-if="showFields.price" style="font-weight:700; font-size:13px">{{ formatMoney(d.sell_price) }}</div>
         </div>
       </div>
     </div>

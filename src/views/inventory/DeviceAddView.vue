@@ -21,7 +21,6 @@ const showWhatsApp = ref(false)
 const form = ref({
   imei1:       '',
   imei2:       '',
-  serial:      '',
   brand:       '',
   model:       '',
   condition:   'Grade A',
@@ -55,7 +54,6 @@ async function handleSubmit() {
   const device = mock.addDevice({
     imei1:       form.value.imei1,
     imei2:       form.value.imei2 || null,
-    serial:      form.value.serial,
     brand:       form.value.brand,
     model:       form.value.model,
     condition:   form.value.condition,
@@ -132,9 +130,8 @@ function goToDevice() {
       <!-- Form -->
       <div class="card p-4 space-y-4">
         <div class="grid grid-cols-2 gap-3">
-          <AppInput v-model="form.imei1"      label="IMEI 1 *"          placeholder="15 digits" required data-no-scanner-refocus />
-          <AppInput v-model="form.imei2"      label="IMEI 2"            placeholder="Optional"  data-no-scanner-refocus />
-          <AppInput v-model="form.serial"     label="Serial Number"                             data-no-scanner-refocus />
+          <AppInput v-model="form.imei1" v-restrict="'imei'" label="IMEI 1 *" inputmode="numeric" placeholder="15 digits" required data-no-scanner-refocus />
+          <AppInput v-model="form.imei2" v-restrict="'imei'" label="IMEI 2" inputmode="numeric" placeholder="Optional" data-no-scanner-refocus />
           <AppInput v-model="form.brand"      label="Brand *"           placeholder="e.g. Samsung" required data-no-scanner-refocus />
           <AppInput v-model="form.model"      label="Model *"           placeholder="e.g. Galaxy A54" required data-no-scanner-refocus />
           <div>
@@ -149,8 +146,8 @@ function goToDevice() {
               <option v-for="p in ptaOptions" :key="p" :value="p">{{ p }}</option>
             </select>
           </div>
-          <AppInput v-model="form.cost_price" label="Cost Price (Rs.)"  type="number" min="0"  data-no-scanner-refocus />
-          <AppInput v-model="form.sell_price" label="Sell Price (Rs.) *" type="number" min="0" required data-no-scanner-refocus />
+          <AppInput v-model="form.cost_price" v-restrict="'decimal'" label="Cost Price (Rs.)" inputmode="decimal" data-no-scanner-refocus />
+          <AppInput v-model="form.sell_price" v-restrict="'decimal'" label="Sell Price (Rs.) *" inputmode="decimal" required data-no-scanner-refocus />
         </div>
 
         <div class="flex gap-2 pt-2">

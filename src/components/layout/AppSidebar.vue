@@ -4,86 +4,19 @@ import { useRoute, RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import NavIcon from '@/components/ui/NavIcon.vue'
+import { TABS, tabMatchPrefixes } from '@/config/sections'
 import logoImg from '@/assets/logo of My Phone.png'
 
 const auth  = useAuthStore()
 const ui    = useUiStore()
 const route = useRoute()
 
-/**
- * Navigation — logically ordered:
- * 1. Core daily ops  (Dashboard, POS)
- * 2. Stock           (IMEI Devices, Accessories, Labels)
- * 3. Selling         (Invoices, Installments, Customers)
- * 4. Workshop        (Repairs)
- * 5. Procurement     (Purchases, Suppliers, Transfers)
- * 6. Finance         (Cash Session, Expenses)
- * 7. Insights        (Reports)
- * 8. Admin           (Settings)
- */
-const nav = computed(() => [
-  {
-    items: [
-      { label: 'Dashboard',     to: '/dashboard',             icon: 'home'     },
-      { label: 'Point of Sale', to: '/pos',                   icon: 'pos',     accent: true },
-    ],
-  },
-  {
-    section: 'Stock',
-    items: [
-      { label: 'IMEI Devices',  to: '/inventory/devices',     icon: 'device'   },
-      { label: 'Accessories',   to: '/inventory/accessories', icon: 'plug'     },
-      { label: 'Products',      to: '/inventory/products',    icon: 'box'      },
-      { label: 'Barcode Labels',to: '/inventory/labels',      icon: 'tag'      },
-    ],
-  },
-  {
-    section: 'Sales',
-    items: [
-      { label: 'Invoices',      to: '/sales/invoices',        icon: 'receipt'  },
-      { label: 'Installments',  to: '/installments',          icon: 'calendar' },
-      { label: 'Customers',     to: '/customers',             icon: 'users'    },
-    ],
-  },
-  {
-    section: 'Workshop',
-    items: [
-      { label: 'Repair Board',  to: '/repairs/board',         icon: 'wrench'   },
-      { label: 'Repair Jobs',   to: '/repairs/jobs',          icon: 'wrench'   },
-    ],
-  },
-  {
-    section: 'Procurement',
-    items: [
-      { label: 'Purchases',     to: '/purchases/orders',      icon: 'truck'    },
-      { label: 'Suppliers',     to: '/suppliers',             icon: 'building' },
-      { label: 'Transfers',     to: '/transfers',             icon: 'transfer' },
-    ],
-  },
-  {
-    section: 'Finance',
-    items: [
-      { label: 'Cash Session',  to: '/cash',                  icon: 'cash'     },
-      { label: 'Expenses',      to: '/cash/expenses',         icon: 'expense'  },
-    ],
-  },
-  {
-    section: 'Insights',
-    show: auth.hasPermission('view_reports'),
-    items: [
-      { label: 'Reports',       to: '/reports',               icon: 'chart'    },
-    ],
-  },
-  {
-    items: [
-      { label: 'Settings',      to: '/settings',              icon: 'cog'      },
-    ],
-  },
-])
+// Major tabs — each opens its section hub (which shows options in the body).
+const tabs = computed(() => TABS)
 
-function isActive(to) {
-  if (to === '/dashboard') return route.path === '/dashboard'
-  return route.path.startsWith(to)
+function isActive(tab) {
+  if (tab.to === '/dashboard') return route.path === '/dashboard'
+  return tabMatchPrefixes(tab).some(p => route.path.startsWith(p))
 }
 
 const initials = computed(() =>
@@ -115,41 +48,26 @@ const initials = computed(() =>
       </Transition>
     </div>
 
-    <!-- ── Navigation ────────────────────────────────────────────────── -->
-    <nav class="flex-1 overflow-y-auto overflow-x-hidden py-3 px-3 space-y-0.5" aria-label="Main navigation">
-      <template v-for="group in nav" :key="group.section || '_root'">
-        <template v-if="group.show !== false">
-
-          <!-- Section heading -->
-          <Transition name="fade-slide">
-            <p v-if="ui.sidebarOpen && group.section" class="nav-section">
-              {{ group.section }}
-            </p>
-          </Transition>
-          <div v-if="!ui.sidebarOpen && group.section" class="nav-rule" />
-
-          <!-- Links -->
-          <RouterLink
-            v-for="item in group.items"
-            :key="item.to"
-            :to="item.to"
-            :title="!ui.sidebarOpen ? item.label : undefined"
-            :class="[
-              isActive(item.to)
-                ? (item.accent ? 'link-pos-active'    : 'link-active')
-                : (item.accent ? 'link-pos'           : 'link'),
-            ]"
-          >
-            <span class="link-icon">
-              <NavIcon :icon="item.icon" class="w-[17px] h-[17px]" />
-            </span>
-            <Transition name="fade-slide">
-              <span v-if="ui.sidebarOpen" class="link-label">{{ item.label }}</span>
-            </Transition>
-          </RouterLink>
-
-        </template>
-      </template>
+    <!-- ── Major tabs ────────────────────────────────────────────────── -->
+    <nav class="flex-1 overflow-y-auto overflow-x-hidden py-3 px-3 space-y-1" aria-label="Main navigation">
+      <RouterLink
+        v-for="tab in tabs"
+        :key="tab.to"
+        :to="tab.to"
+        :title="!ui.sidebarOpen ? tab.label : undefined"
+        :class="[
+          isActive(tab)
+            ? (tab.accent ? 'link-pos-active' : 'link-active')
+            : (tab.accent ? 'link-pos'        : 'link'),
+        ]"
+      >
+        <span class="link-icon">
+          <NavIcon :icon="tab.icon" class="w-[18px] h-[18px]" />
+        </span>
+        <Transition name="fade-slide">
+          <span v-if="ui.sidebarOpen" class="link-label">{{ tab.label }}</span>
+        </Transition>
+      </RouterLink>
     </nav>
 
     <!-- ── User strip ─────────────────────────────────────────────────── -->

@@ -6,6 +6,9 @@ const DashboardView = () => import('@/views/dashboard/DashboardView.vue')
 // POS
 const PosView = () => import('@/views/pos/PosView.vue')
 
+// Section hubs (major tabs → body shows the section's options as cards)
+const SectionHubView = () => import('@/views/SectionHubView.vue')
+
 // Inventory
 const InventoryLayout = () => import('@/views/inventory/InventoryLayout.vue')
 const ProductListView = () => import('@/views/inventory/ProductListView.vue')
@@ -98,6 +101,12 @@ const routes = [
         component: PosView,
         meta: { title: 'Point of Sale', fullscreen: true },
     },
+    // ── Section hubs (major tab → body shows section options as cards) ────────
+    { path: '/stock',       name: 'hub.stock',       component: SectionHubView, meta: { title: 'Stock',       sectionKey: 'stock' } },
+    { path: '/selling',     name: 'hub.selling',     component: SectionHubView, meta: { title: 'Sales',       sectionKey: 'selling' } },
+    { path: '/workshop',    name: 'hub.workshop',    component: SectionHubView, meta: { title: 'Repairs',     sectionKey: 'workshop' } },
+    { path: '/procurement', name: 'hub.procurement', component: SectionHubView, meta: { title: 'Procurement', sectionKey: 'procurement' } },
+    { path: '/finance',     name: 'hub.finance',     component: SectionHubView, meta: { title: 'Finance',     sectionKey: 'finance' } },
     // Cash
     {
         path: '/cash',
@@ -189,17 +198,9 @@ const routes = [
             { path: 'acquisitions/new', name: 'purchases.acquisition', component: AcquisitionView, meta: { title: 'Used Phone Acquisition' } },
         ],
     },
-    // Installments
-    {
-        path: '/installments',
-        meta: {},
-        children: [
-            { path: '', name: 'installments.list', component: InstallmentListView, meta: { title: 'Installment Plans' } },
-            { path: 'new', name: 'installments.new', component: InstallmentPlanBuilderView, meta: { title: 'New Installment Plan' } },
-            { path: 'aging', name: 'installments.aging', component: OverdueAgingView, meta: { title: 'Overdue Aging' } },
-            { path: ':id', name: 'installments.detail', component: InstallmentDetailView, meta: { title: 'Installment Plan' } },
-        ],
-    },
+    // Installments — removed per client request (redirect legacy links)
+    { path: '/installments', redirect: '/dashboard' },
+    { path: '/installments/:pathMatch(.*)*', redirect: '/dashboard' },
     // Reports
     {
         path: '/reports',

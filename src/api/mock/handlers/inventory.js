@@ -142,15 +142,74 @@ export const inventoryHandlers = [
         return HttpResponse.json({ detail: 'Not found.' }, { status: 404 })
     }),
 
-    // ── Products (generic — used by PO/purchase forms) ─────────────────────────
+    // ── Products (generic — used by POS product search & PO/purchase forms) ────
     http.get('*/inventory/products/', ({ request }) => {
         const url = new URL(request.url)
         const { page, pageSize } = parsePagination(url)
-        const q = url.searchParams.get('search') || ''
-        let rows = [...db.devices.all().map(d => ({ id: d.id, name: `${d.brand} ${d.model}`, sku: d.serial, sell_price: d.sell_price, cost_price: d.cost_price, stock_qty: d.lifecycle_state === 'in_stock' ? 1 : 0 })),
-        ...db.accessories.all().map(a => ({ id: `acc_${a.id}`, name: a.name, sku: a.sku, sell_price: a.sell_price, cost_price: a.cost_price, stock_qty: a.stock_qty }))]
-        if (q) rows = rows.filter(r => r.name.toLowerCase().includes(q.toLowerCase()) || r.sku.toLowerCase().includes(q.toLowerCase()))
-        return HttpResponse.json(paginated(rows, page, pageSize))
+        const q = (url.searchParams.get('search') || '').trim().toLowerCase()
+        const rows = [
+            // Serialised devices — carry IMEI + unit identity so POS can add them as units.
+            ...db.devices.all().map(d => ({
+                id: d.id,
+                product_id: d.id,
+                unit_id: d.id,
+                type: 'unit',
+                name: `${d.brand} ${d.model}`,
+                sku: d.serial,
+                brand_name: d.brand,
+                imei1: d.imei1,
+                imei2: d.imei2,
+                imei: d.imei1,
+                price: d.sell_price,
+                sell_price: d.sell_price,
+                cost_price: d.cost_price,
+                lifecycle_state: d.lifecycle_state,
+                stock_qty: d.lifecycle_state === 'in_stock' ? 1 : 0,
+            })),
+            // Accessories — non-serialised.
+            ...db.accessories.all().map(a => ({
+                id: `acc_${a.id}`,
+                product_id: a.id,
+                unit_id: null,
+                type: 'accessory',
+                name: a.name,
+                sku: a.sku,
+                brand_name: a.brand,
+                category_name: a.category,
+                imei: null,
+                price: a.sell_price,
+                sell_price: a.sell_price,
+                cost_price: a.cost_price,
+                stock_qty: a.stock_qty,
+            })),
+        ]
+        let out = rows
+        if (q) {
+            out = rows.filter(r =>
+                (r.name || '').toLowerCase().includes(q) ||
+                (r.sku || '').toLowerCase().includes(q) ||
+                (r.imei1 || '').toLowerCase().includes(q) ||
+                (r.imei2 || '').toLowerCase().includes(q)
+            )
+        }
+        return HttpResponse.json(paginated(out, page, pageSize))
+    }),
+
+    // Create/update a generic product — backed by the accessories store.
+    http.post('*/inventory/products/', async ({ request }) => {
+        const body = await request.json()
+        const acc = db.accessories.create({
+            stock_qty: 0, reorder_level: 5, brand: '', category: '', ...body,
+        })
+        return HttpResponse.json({ ...acc, id: acc.id, product_id: acc.id }, { status: 201 })
+    }),
+
+    http.patch('*/inventory/products/:id/', async ({ params, request }) => {
+        const body = await request.json()
+        const id = String(params.id).replace(/^acc_/, '')
+        const acc = db.accessories.update(id, body)
+        if (!acc) return HttpResponse.json({ detail: 'Not found.' }, { status: 404 })
+        return HttpResponse.json(acc)
     }),
 
     http.get('*/inventory/categories/', () => {

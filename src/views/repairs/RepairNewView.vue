@@ -6,13 +6,11 @@ import { customersApi } from '@/api/customers'
 import { useUiStore } from '@/stores/ui'
 import { useForm } from '@/composables/useForm'
 import AppInput from '@/components/ui/AppInput.vue'
-import AppSelect from '@/components/ui/AppSelect.vue'
 import AppButton from '@/components/ui/AppButton.vue'
 
 const router   = useRouter()
 const ui       = useUiStore()
 const saving   = ref(false)
-const technicians = ref([])
 const customerSearch  = ref('')
 const customerResults = ref([])
 const selectedCustomer = ref(null)
@@ -21,16 +19,8 @@ const { fields, errors, validate } = useForm({
   device_model:      { value: '', required: true },
   imei:              { value: '' },
   issue_description: { value: '', required: true },
-  technician:        { value: '' },
   estimated_cost:    { value: '', min: 0 },
   advance_payment:   { value: 0, min: 0 },
-  accessories_received:{ value: '' },
-  notes:             { value: '' },
-})
-
-onMounted(async () => {
-  const res = await repairsApi.listTechnicians()
-  technicians.value = (res.data.results ?? res.data).map(t => ({ value: t.id, label: t.name }))
 })
 
 let customerTimer = null
@@ -105,10 +95,9 @@ async function handleSubmit() {
 
       <div class="grid grid-cols-2 gap-4">
         <AppInput v-model="fields.device_model"   label="Device Model"        :error="errors.device_model"      required class="col-span-2" />
-        <AppInput v-model="fields.imei"           label="IMEI / Serial"       hint="Optional but recommended" />
-        <AppSelect v-model="fields.technician"    label="Assigned Technician" :options="[{ value: '', label: 'Unassigned' }, ...technicians]" />
-        <AppInput v-model="fields.estimated_cost" label="Estimated Cost"      type="number" min="0" prefix="Rs." :error="errors.estimated_cost" />
-        <AppInput v-model="fields.advance_payment" label="Advance Payment"   type="number" min="0" prefix="Rs." :error="errors.advance_payment" />
+        <AppInput v-model="fields.imei" v-restrict="'imei'" label="IMEI" inputmode="numeric" hint="Optional but recommended" />
+        <AppInput v-model="fields.estimated_cost" v-restrict="'decimal'" label="Estimated Cost" inputmode="decimal" prefix="Rs." :error="errors.estimated_cost" />
+        <AppInput v-model="fields.advance_payment" v-restrict="'decimal'" label="Advance Payment" inputmode="decimal" prefix="Rs." :error="errors.advance_payment" />
       </div>
 
       <div>
@@ -116,9 +105,6 @@ async function handleSubmit() {
         <textarea v-model="fields.issue_description" class="input" rows="3" :class="errors.issue_description ? 'input-error' : ''" />
         <p v-if="errors.issue_description" class="text-xs text-red-600 mt-1">{{ errors.issue_description }}</p>
       </div>
-
-      <AppInput v-model="fields.accessories_received" label="Accessories Received" hint="e.g. Charger, box, SIM tray" />
-      <AppInput v-model="fields.notes"               label="Internal Notes" />
 
       <div class="flex justify-end gap-3 pt-2">
         <AppButton type="button" variant="secondary" @click="router.back()">Cancel</AppButton>
