@@ -1,6 +1,5 @@
-from datetime import timedelta
 from django.utils import timezone
-from rest_framework import viewsets, status
+from rest_framework import viewsets
 from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
@@ -87,7 +86,7 @@ class InstallmentPlanViewSet(viewsets.ModelViewSet):
         schedule_id = ser.validated_data.get('schedule_item_id')
 
         # Record payment
-        payment = InstallmentPayment.objects.create(
+        InstallmentPayment.objects.create(
             plan=plan,
             schedule_item_id=schedule_id,
             amount=amount,

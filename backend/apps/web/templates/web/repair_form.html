@@ -1,0 +1,70 @@
+{% extends "web/base.html" %}
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title gradient-text">New Repair Job</h1>
+    <p class="page-subtitle">Log a device for repair</p>
+</div>
+
+<div class="form-card">
+    {% if error %}<div class="form-error">⚠ {{ error }}</div>{% endif %}
+    <form method="post">
+        {% csrf_token %}
+        <p class="section-label">Customer</p>
+        <div class="form-grid-2">
+            <div class="form-field">
+                <label class="form-label">Customer Name *</label>
+                <input type="text" name="customer_name" class="form-input" required maxlength="255" />
+            </div>
+            <div class="form-field">
+                <label class="form-label">Phone</label>
+                <input type="tel" name="customer_phone" class="form-input" maxlength="20"
+                    oninput="this.value=this.value.replace(/[^0-9]/g,'')" />
+            </div>
+        </div>
+
+        <p class="section-label">Device</p>
+        <div class="form-grid-2">
+            <div class="form-field">
+                <label class="form-label">Device Model *</label>
+                <input type="text" name="device_model" class="form-input" required maxlength="200" placeholder="e.g. iPhone 12" />
+            </div>
+            <div class="form-field">
+                <label class="form-label">IMEI</label>
+                <input type="text" name="device_imei" class="form-input" maxlength="20"
+                    oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,15)" />
+            </div>
+        </div>
+        <div class="form-field" style="margin-top:.75rem">
+            <label class="form-label">Fault / Issue Description *</label>
+            <textarea name="fault_description" class="form-textarea" rows="3" required placeholder="Describe the problem…"></textarea>
+        </div>
+
+        <p class="section-label">Assignment &amp; Cost</p>
+        <div class="form-grid-3">
+            <div class="form-field">
+                <label class="form-label">Branch</label>
+                <select name="branch" class="form-select">
+                    <option value="">— None —</option>
+                    {% for b in branches %}<option value="{{ b.pk }}">{{ b.name }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="form-field">
+                <label class="form-label">Technician</label>
+                <select name="technician" class="form-select">
+                    <option value="">— Unassigned —</option>
+                    {% for t in technicians %}<option value="{{ t.pk }}">{{ t.get_full_name|default:t.username }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="form-field">
+                <label class="form-label">Estimated Cost (Rs.)</label>
+                <input type="number" name="estimated_cost" class="form-input" min="0" step="10" placeholder="0" />
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Create Job</button>
+            <a href="{% url 'web:repairs' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

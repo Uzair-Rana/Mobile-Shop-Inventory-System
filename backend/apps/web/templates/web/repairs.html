@@ -1,0 +1,65 @@
+{% extends "web/base.html" %}
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title gradient-text">Repair Jobs</h1>
+    <p class="page-subtitle">Workshop tickets</p>
+</div>
+
+<!-- Active / History tabs -->
+<div style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap">
+    <a href="?tab=active{% if q %}&q={{ q }}{% endif %}"
+        class="badge {% if tab == 'active' %}badge-blue{% else %}badge-gray{% endif %}"
+        style="padding:.4rem .9rem;font-size:.85rem;text-decoration:none">
+        🔧 Active ({{ active_count }})
+    </a>
+    <a href="?tab=history{% if q %}&q={{ q }}{% endif %}"
+        class="badge {% if tab == 'history' %}badge-blue{% else %}badge-gray{% endif %}"
+        style="padding:.4rem .9rem;font-size:.85rem;text-decoration:none">
+        📁 History ({{ history_count }})
+    </a>
+</div>
+
+<div class="toolbar">
+    <form method="get" class="toolbar" style="gap:.75rem;margin:0;width:100%">
+        <input type="hidden" name="tab" value="{{ tab }}" />
+        <div class="search-box">
+            <span class="search-ico">🔍</span>
+            <input type="search" name="q" value="{{ q }}" placeholder="Search job #, customer, device…" />
+        </div>
+        <button type="submit" class="btn btn-secondary">Search</button>
+    </form>
+    <a href="{% url 'web:repair_new' %}" class="btn btn-primary">+ New Repair Job</a>
+</div>
+
+<div class="table-card">
+    <table class="table">
+        <thead>
+            <tr><th>Job #</th><th>Customer</th><th>Device</th><th>Status</th><th style="text-align:right">Estimate</th><th>Technician</th><th></th></tr>
+        </thead>
+        <tbody>
+            {% for j in jobs %}
+            <tr>
+                <td><strong>{{ j.job_number }}</strong></td>
+                <td>{{ j.customer_name }}</td>
+                <td>{{ j.device_model }}</td>
+                <td>
+                    <span class="badge
+                        {% if j.status == 'delivered' %}badge-green
+                        {% elif j.status == 'ready' %}badge-blue
+                        {% elif j.status == 'cancelled' %}badge-red
+                        {% elif j.status == 'in_repair' %}badge-orange
+                        {% else %}badge-gray{% endif %}">
+                        {{ j.get_status_display }}
+                    </span>
+                </td>
+                <td style="text-align:right">Rs. {{ j.estimated_cost|floatformat:0 }}</td>
+                <td>{{ j.technician.username|default:"Unassigned" }}</td>
+                <td><a href="{% url 'web:repair_detail' j.pk %}" class="btn btn-secondary" style="padding:.3rem .7rem;font-size:.8rem">View →</a></td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" style="text-align:center;padding:3rem;color:var(--text-muted)">No repair jobs found.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

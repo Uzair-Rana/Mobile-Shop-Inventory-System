@@ -1,0 +1,89 @@
+{% extends "web/base.html" %}
+{% block content %}
+<div class="page-header"
+    style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem">
+    <div>
+        <h1 class="page-title gradient-text">{{ unit.brand }} {{ unit.model }}</h1>
+        <p class="page-subtitle" style="font-family:ui-monospace,monospace">IMEI: {{ unit.imei1 }}</p>
+    </div>
+    <a href="{% url 'web:devices' %}" class="btn btn-secondary">← Back to Devices</a>
+</div>
+
+<div class="detail-grid">
+    <!-- Left: identity + commercial -->
+    <div style="display:flex;flex-direction:column;gap:1rem">
+
+        <!-- Identity card -->
+        <div class="info-card">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+                <h2
+                    style="font-size:1rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:0">
+                    Identity</h2>
+                <span class="badge
+          {% if unit.lifecycle_state == 'in_stock' %}badge-green
+          {% elif unit.lifecycle_state == 'sold' %}badge-gray
+          {% elif unit.lifecycle_state == 'defective' %}badge-red
+          {% elif unit.lifecycle_state == 'in_repair' %}badge-orange
+          {% else %}badge-blue{% endif %}">
+                    {{ unit.get_lifecycle_state_display }}
+                </span>
+            </div>
+            <div class="info-row">
+                <div class="info-field"><span class="info-label">IMEI 1</span><span class="info-value"
+                        style="font-family:ui-monospace,monospace">{{ unit.imei1 }}</span></div>
+                {% if unit.imei2 %}<div class="info-field"><span class="info-label">IMEI 2</span><span
+                        class="info-value" style="font-family:ui-monospace,monospace">{{ unit.imei2 }}</span></div>{% endif %}
+                {% if unit.serial %}<div class="info-field"><span class="info-label">Serial</span><span
+                        class="info-value" style="font-family:ui-monospace,monospace">{{ unit.serial }}</span></div>{% endif %}
+                <div class="info-field"><span class="info-label">Brand</span><span class="info-value">{{ unit.brand }}</span></div>
+                <div class="info-field"><span class="info-label">Model</span><span class="info-value">{{ unit.model }}</span></div>
+                <div class="info-field"><span class="info-label">Condition</span><span class="info-value">{{ unit.condition }}</span></div>
+                <div class="info-field">
+                    <span class="info-label">PTA Status</span>
+                    <span
+                        class="badge {% if unit.pta_status == 'PTA Approved' %}badge-green{% elif unit.pta_status == 'PTA Blocked' %}badge-red{% else %}badge-yellow{% endif %}">
+                        {{ unit.pta_status }}
+                    </span>
+                </div>
+                <div class="info-field"><span class="info-label">Branch</span><span class="info-value">{{ unit.branch.name|default:"—" }}</span></div>
+                <div class="info-field"><span class="info-label">Added by</span><span class="info-value">{{ unit.added_by.username|default:"—" }}</span></div>
+                <div class="info-field"><span class="info-label">Added on</span><span class="info-value">{{ unit.created_at|date:"d M Y" }}</span></div>
+            </div>
+        </div>
+
+        <!-- Commercial card -->
+        <div class="info-card">
+            <h2
+                style="font-size:1rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:0 0 1rem">
+                Commercial</h2>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem">
+                <div class="stat-cell">
+                    <div class="stat-label">Cost Price</div>
+                    <div class="stat-value" style="font-size:1.3rem">Rs. {{ unit.cost_price|floatformat:0 }}</div>
+                </div>
+                <div class="stat-cell">
+                    <div class="stat-label">Sell Price</div>
+                    <div class="stat-value" style="font-size:1.3rem;color:var(--brand-500)">Rs. {{ unit.sell_price|floatformat:0 }}</div>
+                </div>
+                <div class="stat-cell">
+                    <div class="stat-label">Profit</div>
+                    <div class="stat-value" style="font-size:1.3rem;color:#15803d">Rs. {{ unit.profit|floatformat:0 }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right: quick actions -->
+    <div style="display:flex;flex-direction:column;gap:1rem">
+        <div class="info-card">
+            <h2
+                style="font-size:1rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:0 0 1rem">
+                Actions</h2>
+            <div style="display:flex;flex-direction:column;gap:.5rem">
+                <a href="{% url 'web:devices' %}" class="btn btn-secondary" style="justify-content:center">← All
+                    Devices</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

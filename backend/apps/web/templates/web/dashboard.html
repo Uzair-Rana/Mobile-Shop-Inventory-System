@@ -1,0 +1,52 @@
+{% extends "web/base.html" %}
+{% block content %}
+
+<div class="page-header"
+  style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem">
+  <div>
+    <h1 class="page-title gradient-text">Dashboard</h1>
+    <p class="page-subtitle">Business at a glance — {{ period_label }}</p>
+  </div>
+  <a href="{% url 'web:pos' %}" class="btn btn-primary" style="font-size:1rem;padding:.625rem 1.25rem">🧾 Open POS</a>
+</div>
+
+<!-- Time-period selector — all money figures update to the chosen range -->
+<div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1.25rem">
+  {% for val, label in periods %}
+  <a href="?period={{ val }}"
+    class="badge {% if period == val %}badge-blue{% else %}badge-gray{% endif %}"
+    style="padding:.4rem 1rem;font-size:.85rem;text-decoration:none">{{ label }}</a>
+  {% endfor %}
+</div>
+
+<!-- KPI strip -->
+<div class="kpi-grid" style="margin-bottom:1.5rem">
+  {% for k in kpis %}
+  {% if k.url %}
+  <a href="{% url k.url %}" class="stat-cell" style="text-decoration:none;display:block;position:relative">
+    <div class="stat-label">{{ k.label }} →</div>
+    <div class="stat-value">{{ k.value }}</div>
+  </a>
+  {% else %}
+  <div class="stat-cell">
+    <div class="stat-label">{{ k.label }}</div>
+    <div class="stat-value">{{ k.value }}</div>
+  </div>
+  {% endif %}
+  {% endfor %}
+</div>
+
+<!-- Quick links to the main sections -->
+<p class="section-label" style="margin-bottom:.6rem">Quick Access</p>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.875rem">
+  {% for link in quick_links %}
+  <a href="{% url link.url %}" class="stat-cell"
+    style="text-decoration:none;display:flex;flex-direction:column;align-items:center;gap:.4rem;padding:1.25rem .75rem;text-align:center;transition:transform .12s,box-shadow .12s"
+    onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+    <span style="font-size:1.75rem">{{ link.icon }}</span>
+    <span style="font-weight:700;color:var(--text-primary)">{{ link.label }}</span>
+  </a>
+  {% endfor %}
+</div>
+
+{% endblock %}

@@ -1,0 +1,352 @@
+{% extends "web/base.html" %}
+{% block content %}
+
+<!-- Full-width POS layout: left = product grid, right = cart -->
+<div style="display:grid;grid-template-columns:1fr 360px;gap:1rem;height:calc(100vh - 64px - 3.5rem);align-items:start">
+
+    <!-- ══ LEFT: Product catalog, grouped into category sections ═════════════ -->
+    <div style="display:flex;flex-direction:column;gap:.875rem;min-height:0">
+
+        <!-- Search -->
+        <div style="display:flex;gap:.625rem;flex-wrap:wrap;align-items:center">
+            <form method="get" action="{% url 'web:pos' %}" style="display:flex;gap:.5rem;flex:1;min-width:200px">
+                <div class="search-box" style="flex:1">
+                    <span class="search-ico">🔍</span>
+                    <input type="search" name="q" value="{{ q }}" placeholder="Search products…" autofocus />
+                </div>
+                <button type="submit" class="btn btn-secondary" style="padding:.5rem .875rem">Search</button>
+                {% if q %}
+                <a href="{% url 'web:pos' %}" class="btn btn-secondary" style="padding:.5rem .875rem">✕ Clear</a>
+                {% endif %}
+            </form>
+        </div>
+
+        <!-- Quick-jump chips — one per section -->
+        {% if categories %}
+        <div style="display:flex;flex-wrap:wrap;gap:.4rem">
+            {% for cat in categories %}
+            <a href="#cat-{{ cat|slugify }}" class="badge badge-gray"
+                style="padding:.3rem .75rem;font-size:.8rem;cursor:pointer;text-decoration:none">{{ cat }}</a>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Sections — Products (per category), IMEI Devices, Spare Parts -->
+        <div style="overflow-y:auto;flex:1" id="product-grid">
+            {% if sections %}
+            {% for section in sections %}
+            <section id="cat-{{ section.title|slugify }}" style="margin-bottom:1.5rem">
+                <div class="pos-section-title">
+                    <span>{{ section.title }}</span>
+                    <span class="pos-section-count">{{ section.items|length }}</span>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:.75rem">
+                    {% for it in section.items %}
+                    <form method="post"
+                        action="{% if it.in_cart %}{% url 'web:pos_remove' %}{% else %}{% url 'web:pos_add' %}{% endif %}"
+                        style="margin:0">
+                        {% csrf_token %}
+                        <input type="hidden" name="type" value="{{ it.type }}" />
+                        <input type="hidden" name="id" value="{{ it.id }}" />
+                        <button type="submit"
+                            class="product-card {% if it.in_cart %}product-card-active{% endif %}">
+                            {% if it.in_cart %}<div class="product-selected-badge">✓ In Cart</div>{% endif %}
+                            <div class="pc-name">{{ it.name }}</div>
+                            {% if it.imei %}
+                            <div class="pc-sku">IMEI: {{ it.imei }}</div>
+                            {% elif it.sku %}
+                            <div class="pc-sku">{{ it.sku }}</div>
+                            {% endif %}
+                            {% if it.brand %}<div class="pc-brand">{{ it.brand }}</div>{% endif %}
+                            <div class="pc-price">Rs. {{ it.price|floatformat:0 }}</div>
+                            <div class="pc-stock {% if it.low %}pc-stock-low{% endif %}">
+                                {% if it.type == 'unit' %}1 in stock{% else %}{{ it.stock }} left{% endif %}
+                            </div>
+                        </button>
+                    </form>
+                    {% endfor %}
+                </div>
+            </section>
+            {% endfor %}
+            {% else %}
+            <div style="text-align:center;padding:3rem;color:var(--text-muted)">
+                <div style="font-size:2.5rem;margin-bottom:.75rem">📦</div>
+                <p>No stock available{% if q %} matching "{{ q }}"{% endif %}.</p>
+                {% if q %}<a href="{% url 'web:pos' %}" style="color:var(--brand-500)">Clear search</a>{% endif %}
+                {% if not q %}<p style="font-size:.85rem">Add stock via
+                    <a href="{% url 'web:procurement_add' %}" style="color:var(--brand-500)">New Procurement</a>.</p>{% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+<!-- ══ RIGHT: Cart + Checkout ═════════════════════════════════════════════ -->
+<div
+    style="background:#fff;border:1px solid var(--border);border-radius:var(--radius);display:flex;flex-direction:column;height:calc(100vh - 64px - 3.5rem);box-shadow:var(--shadow)">
+
+    <!-- Cart header -->
+    <div
+        style="padding:.875rem 1rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+        <span style="font-weight:800;font-size:1rem">🛒 Cart
+            {% if cart_count %}<span
+                style="background:var(--brand-500);color:#fff;border-radius:99px;padding:.1rem .5rem;font-size:.75rem;margin-left:.35rem">{{ cart_count }}</span>{% endif %}
+        </span>
+        {% if cart %}
+        <form method="post" action="{% url 'web:pos_clear' %}" style="margin:0">
+            {% csrf_token %}
+            <button class="btn btn-secondary" style="padding:.25rem .6rem;font-size:.75rem">Clear All</button>
+        </form>
+        {% endif %}
+    </div>
+
+    <!-- Cart items (scrollable) -->
+    <div style="flex:1;overflow-y:auto;padding:.5rem 0">
+        {% if cart %}
+        {% for item in cart %}
+        <div
+            style="display:flex;align-items:center;gap:.625rem;padding:.5rem 1rem;border-bottom:1px solid var(--border-light)">
+            <div style="flex:1;min-width:0">
+                <div
+                    style="font-weight:600;font-size:.875rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                    {{ item.name }}</div>
+                {% if item.imei %}<div style="font-size:.68rem;color:var(--text-muted)">IMEI: {{ item.imei }}</div>{% endif %}
+                <div style="font-size:.75rem;color:var(--text-muted)">Rs. {{ item.price }} × {{ item.qty }}</div>
+            </div>
+            <div style="font-weight:700;font-size:.9rem;white-space:nowrap">
+                Rs. {{ item.line_total|floatformat:0 }}
+            </div>
+            <form method="post" action="{% url 'web:pos_remove' %}" style="margin:0">
+                {% csrf_token %}
+                <input type="hidden" name="type" value="{{ item.type }}" />
+                <input type="hidden" name="id" value="{{ item.id }}" />
+                <button type="submit"
+                    style="background:none;border:none;cursor:pointer;color:#be123c;font-size:1rem;padding:.2rem .4rem;border-radius:4px"
+                    title="Remove">✕</button>
+            </form>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div style="text-align:center;padding:2.5rem 1rem;color:var(--text-muted)">
+            <div style="font-size:2rem;margin-bottom:.5rem">🛒</div>
+            <p style="font-size:.875rem">Click any product to add it to the cart.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Total + Checkout -->
+    <div style="border-top:2px solid var(--border);padding:1rem;flex-shrink:0">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+            <span style="font-weight:700;color:var(--text-muted)">Grand Total</span>
+            <span style="font-weight:900;font-size:1.4rem;color:var(--brand-500)">Rs. {{ cart_total|floatformat:0 }}</span>
+        </div>
+
+        {% if cart %}
+        <form method="post" action="{% url 'web:pos_checkout' %}">
+            {% csrf_token %}
+            <div style="margin-bottom:.6rem">
+                <label style="font-size:.8rem;font-weight:700;display:block;margin-bottom:.3rem">Customer Name</label>
+                <input type="text" name="customer_name" class="form-input" placeholder="Walk-in"
+                    style="padding:.45rem .75rem;font-size:.9rem" />
+            </div>
+            <div style="margin-bottom:.6rem">
+                <label style="font-size:.8rem;font-weight:700;display:block;margin-bottom:.3rem">Customer Phone
+                    <small style="color:var(--text-muted)">— saved to customer record</small></label>
+                <input type="tel" name="customer_phone" class="form-input" placeholder="03001234567"
+                    style="padding:.45rem .75rem;font-size:.9rem"
+                    oninput="this.value=this.value.replace(/[^0-9]/g,'')" />
+            </div>
+            <div style="margin-bottom:.6rem">
+                <label style="font-size:.8rem;font-weight:700;display:block;margin-bottom:.3rem">Discount (Rs.)</label>
+                <input type="number" name="discount" id="pos-discount" min="0" step="1" value="0"
+                    class="form-input" style="padding:.45rem .75rem;font-size:.9rem"
+                    oninput="posUpdateTotal()" />
+            </div>
+            <div id="pos-payable-row"
+                style="display:none;justify-content:space-between;align-items:center;margin-bottom:.6rem;font-weight:800">
+                <span style="color:var(--text-muted)">Payable</span>
+                <span id="pos-payable" style="color:var(--brand-500)">Rs. {{ cart_total|floatformat:0 }}</span>
+            </div>
+            <div style="margin-bottom:.6rem">
+                <label style="font-size:.8rem;font-weight:700;display:block;margin-bottom:.3rem">Amount Received (Rs.)
+                    <small style="color:var(--text-muted)">— blank = full</small></label>
+                <input type="number" name="amount_received" id="pos-received" min="0" step="1"
+                    class="form-input" placeholder="Full payment" style="padding:.45rem .75rem;font-size:.9rem"
+                    oninput="posUpdateTotal()" />
+            </div>
+            <div id="pos-balance-row"
+                style="display:none;justify-content:space-between;align-items:center;margin-bottom:.6rem;font-weight:800;color:#be123c">
+                <span>Balance (Udhaar)</span>
+                <span id="pos-balance">Rs. 0</span>
+            </div>
+            <div style="margin-bottom:.875rem">
+                <label style="font-size:.8rem;font-weight:700;display:block;margin-bottom:.3rem">Payment Method</label>
+                <select name="payment_method" class="form-select" style="padding:.45rem .75rem;font-size:.9rem">
+                    <option value="cash">💵 Cash</option>
+                    <option value="card">💳 Card</option>
+                    <option value="easypaisa">📱 EasyPaisa</option>
+                    <option value="jazzcash">📱 JazzCash</option>
+                    <option value="bank_transfer">🏦 Bank Transfer</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary" id="pos-complete-btn"
+                data-subtotal="{{ cart_total|floatformat:0 }}"
+                style="width:100%;justify-content:center;padding:.625rem;font-size:.95rem">
+                ✅ Complete Sale · Rs. {{ cart_total|floatformat:0 }}
+            </button>
+        </form>
+        <script>
+            function posUpdateTotal() {
+                var btn = document.getElementById('pos-complete-btn');
+                var sub = parseFloat(btn.dataset.subtotal) || 0;
+                var disc = parseFloat(document.getElementById('pos-discount').value) || 0;
+                if (disc < 0) disc = 0;
+                if (disc > sub) disc = sub;
+                var payable = sub - disc;
+                btn.textContent = '✅ Complete Sale · Rs. ' + payable.toLocaleString();
+                var row = document.getElementById('pos-payable-row');
+                row.style.display = disc > 0 ? 'flex' : 'none';
+                document.getElementById('pos-payable').textContent = 'Rs. ' + payable.toLocaleString();
+
+                // Balance / udhaar when less than the payable is received.
+                var recEl = document.getElementById('pos-received');
+                var balRow = document.getElementById('pos-balance-row');
+                var rec = recEl.value === '' ? payable : (parseFloat(recEl.value) || 0);
+                if (rec < 0) rec = 0;
+                if (rec > payable) rec = payable;
+                var balance = payable - rec;
+                balRow.style.display = balance > 0 ? 'flex' : 'none';
+                document.getElementById('pos-balance').textContent = 'Rs. ' + balance.toLocaleString();
+            }
+        </script>
+        {% else %}
+        <button class="btn btn-primary" disabled style="width:100%;justify-content:center;opacity:.4">
+            Add items to checkout
+        </button>
+        {% endif %}
+    </div>
+</div>
+</div>
+
+<style>
+    /* ── Section header ───────────────────────────────────────────────────────── */
+    .pos-section-title {
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+        font-size: .8rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .06em;
+        color: var(--text-muted);
+        margin: 0 0 .6rem;
+        padding-bottom: .35rem;
+        border-bottom: 1px solid var(--border);
+        position: sticky;
+        top: 0;
+        background: var(--bg, #f8fafc);
+        z-index: 1;
+    }
+
+    .pos-section-count {
+        background: var(--border, #e5e7eb);
+        color: var(--text-muted);
+        border-radius: 99px;
+        padding: .05rem .5rem;
+        font-size: .7rem;
+    }
+
+    /* ── Product card ─────────────────────────────────────────────────────────── */
+    .product-card {
+        width: 100%;
+        padding: .875rem .75rem;
+        border: 1.5px solid var(--border);
+        border-radius: var(--radius);
+        background: #fff;
+        cursor: pointer;
+        text-align: left;
+        transition: all 140ms ease;
+        position: relative;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        gap: .2rem;
+        box-shadow: var(--shadow-sm);
+    }
+
+    .product-card:hover:not(:disabled) {
+        border-color: var(--brand-500);
+        box-shadow: 0 4px 16px rgba(225, 29, 72, .18);
+        transform: translateY(-2px);
+    }
+
+    .product-card-active {
+        border-color: var(--brand-500) !important;
+        background: #fff1f2 !important;
+        box-shadow: 0 0 0 2px rgba(225, 29, 72, .25), var(--shadow) !important;
+    }
+
+    .product-card:disabled {
+        opacity: .45;
+        cursor: not-allowed;
+    }
+
+    .product-selected-badge {
+        position: absolute;
+        top: .4rem;
+        right: .4rem;
+        background: var(--brand-500);
+        color: #fff;
+        font-size: .65rem;
+        font-weight: 800;
+        padding: .15rem .4rem;
+        border-radius: 99px;
+    }
+
+    .product-oos {
+        position: absolute;
+        top: .4rem;
+        right: .4rem;
+        background: #9ca3af;
+        color: #fff;
+        font-size: .65rem;
+        font-weight: 800;
+        padding: .15rem .4rem;
+        border-radius: 99px;
+    }
+
+    .pc-name {
+        font-size: .875rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        line-height: 1.3;
+    }
+
+    .pc-sku {
+        font-size: .7rem;
+        color: var(--text-muted);
+        font-family: ui-monospace, monospace;
+    }
+
+    .pc-brand {
+        font-size: .72rem;
+        color: var(--text-muted);
+    }
+
+    .pc-price {
+        font-size: 1rem;
+        font-weight: 800;
+        color: var(--brand-500);
+        margin-top: .25rem;
+    }
+
+    .pc-stock {
+        font-size: .7rem;
+        color: #6b7280;
+    }
+
+    .pc-stock-low {
+        color: #be123c;
+        font-weight: 700;
+    }
+</style>
+{% endblock %}

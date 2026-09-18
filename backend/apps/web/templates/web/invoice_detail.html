@@ -1,0 +1,286 @@
+{% extends "web/base.html" %}
+{% block content %}
+
+<!-- Screen toolbar — hidden on print -->
+<div class="no-print"
+    style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem">
+    <div>
+        <h1 class="page-title gradient-text">{{ inv.invoice_number }}</h1>
+        <p class="page-subtitle">{{ inv.customer_name|default:"Walk-in" }} · {{ inv.created_at|date:"d M Y, g:i A" }}
+        </p>
+    </div>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+        <button onclick="printBill()" class="btn btn-primary">🖨 Print Bill</button>
+        <button onclick="waSendBill()" class="btn" style="background:#25D366;color:#fff;border:none">📲 Send Bill on WhatsApp</button>
+        <button onclick="printToken()" class="btn btn-secondary">🎫 Print Token</button>
+        <a href="{% url 'web:invoices' %}" class="btn btn-secondary">← Back</a>
+    </div>
+</div>
+
+<!-- ══ PAYMENT STATUS — screen only ══════════════════════════════════════════ -->
+<div class="no-print info-card" style="max-width:680px;margin-bottom:1.5rem">
+    <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.75rem">
+        <strong>Payment Status:</strong>
+        <span class="badge
+            {% if inv.status == 'paid' %}badge-green
+            {% elif inv.status == 'partially_paid' %}badge-amber
+            {% elif inv.status == 'returned' %}badge-red
+            {% else %}badge-gray{% endif %}">{{ inv.get_status_display }}</span>
+        {% if inv.balance_due > 0 %}
+        <span style="color:#be123c;font-weight:700">Balance / Udhaar: Rs. {{ inv.balance_due|floatformat:0 }}</span>
+        {% endif %}
+    </div>
+    <form method="post" action="{% url 'web:invoice_status_update' inv.pk %}"
+        style="display:flex;gap:.5rem;align-items:flex-end;flex-wrap:wrap">
+        {% csrf_token %}
+        <div class="form-field" style="margin:0">
+            <label class="form-label">Set status</label>
+            <select name="pay_status" class="form-select" style="min-width:140px"
+                onchange="document.getElementById('inv-amt').style.display = this.value=='pending' ? 'block' : 'none'">
+                <option value="paid" {% if inv.status == 'paid' %}selected{% endif %}>✅ Paid</option>
+                <option value="pending" {% if inv.status != 'paid' %}selected{% endif %}>⏳ Pending (Udhaar)</option>
+            </select>
+        </div>
+        <div class="form-field" id="inv-amt" style="margin:0;{% if inv.status == 'paid' %}display:none{% endif %}">
+            <label class="form-label">Amount Received (Rs.)</label>
+            <input type="number" name="amount_paid" class="form-input" min="0" step="1"
+                value="{{ inv.amount_paid|floatformat:0 }}" style="width:140px" />
+        </div>
+        <button type="submit" class="btn btn-primary">Update</button>
+    </form>
+</div>
+
+<!-- ══ BILL — prints with printBill() ════════════════════════════════════════ -->
+<div id="bill" class="print-target receipt" style="max-width:680px;padding:1.75rem;display:block">
+
+    <!-- Shop header -->
+    <div class="receipt-shop">
+        {% if company.logo %}
+        <img src="{{ company.logo.url }}" alt="{{ company.name }}"
+            style="max-height:64px;max-width:180px;object-fit:contain;margin:0 auto .5rem;display:block" />
+        {% endif %}
+        <div class="shop-name">{{ company.name|default:"My Phone" }}</div>
+        {% if company.address %}
+        <div class="shop-tag" style="white-space:pre-line">{{ company.address }}</div>
+        {% else %}
+        <div class="shop-tag">Mobile Shop &amp; Repair Centre</div>
+        {% endif %}
+        {% if company.phone %}<div class="shop-tag">Tel: {{ company.phone }}</div>{% endif %}
+        {% if company.ntn %}<div class="shop-tag">NTN: {{ company.ntn }}</div>{% endif %}
+    </div>
+
+    <!-- Invoice meta -->
+    <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem">
+        <div>
+            <div style="font-size:.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em">Invoice
+                #</div>
+            <div style="font-weight:800;font-size:1rem">{{ inv.invoice_number }}</div>
+        </div>
+        <div style="text-align:right">
+            <div style="font-size:.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em">Date
+                &amp; Time</div>
+            <div style="font-weight:600">{{ inv.created_at|date:"d M Y, g:i A" }}</div>
+        </div>
+    </div>
+
+    <!-- Customer -->
+    <div style="margin-bottom:1rem;padding:.75rem;background:var(--surface-2);border-radius:8px">
+        <span style="font-size:.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em">Customer:
+        </span>
+        <strong>{{ inv.customer_name|default:"Walk-in" }}</strong>
+        {% if inv.customer %} &nbsp;|&nbsp; {{ inv.customer.phone }}{% endif %}
+    </div>
+
+    <!-- Line items -->
+    <table class="table" style="margin-bottom:1rem">
+        <thead>
+            <tr>
+                <th>Item</th>
+                <th style="text-align:center">Qty</th>
+                <th style="text-align:right">Unit Price</th>
+                <th style="text-align:right">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for l in inv.lines.all %}
+            <tr>
+                <td>
+                    <strong>{{ l.product_name }}</strong>
+                    {% if l.imei %}<br><code
+                        style="font-size:.72rem;color:var(--text-muted)">IMEI: {{ l.imei }}</code>{% endif %}
+                    {% if l.sku %}<br><span style="font-size:.72rem;color:var(--text-muted)">SKU: {{ l.sku }}</span>{% endif %}
+                </td>
+                <td style="text-align:center">{{ l.qty }}</td>
+                <td style="text-align:right">Rs. {{ l.unit_price|floatformat:0 }}</td>
+                <td style="text-align:right;font-weight:600">Rs. {{ l.line_total|floatformat:0 }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="4" style="text-align:center;padding:1.5rem;color:var(--text-muted)">No items.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Totals block -->
+    <div style="margin-left:auto;max-width:300px;border-top:2px solid #e5e7eb;padding-top:.75rem">
+        <div style="display:flex;justify-content:space-between;padding:.2rem 0;color:var(--text-muted)">
+            <span>Subtotal</span><span>Rs. {{ inv.subtotal|floatformat:0 }}</span>
+        </div>
+        {% if inv.discount_amount %}
+        <div style="display:flex;justify-content:space-between;padding:.2rem 0;color:#be123c">
+            <span>Discount</span><span>− Rs. {{ inv.discount_amount|floatformat:0 }}</span>
+        </div>
+        {% endif %}
+        {% if inv.tax_amount %}
+        <div style="display:flex;justify-content:space-between;padding:.2rem 0;color:var(--text-muted)">
+            <span>Tax</span><span>Rs. {{ inv.tax_amount|floatformat:0 }}</span>
+        </div>
+        {% endif %}
+        <div
+            style="display:flex;justify-content:space-between;padding:.6rem 0;border-top:2px solid #111;margin-top:.3rem;font-weight:900;font-size:1.1rem">
+            <span>Grand Total</span><span style="color:var(--brand-500)">Rs. {{ inv.grand_total|floatformat:0 }}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:.2rem 0;color:var(--text-muted)">
+            <span>Paid ({{ inv.get_payment_method_display }})</span><span>Rs. {{ inv.amount_paid|floatformat:0 }}</span>
+        </div>
+        {% if inv.balance_due > 0 %}
+        <div style="display:flex;justify-content:space-between;padding:.2rem 0;color:#be123c;font-weight:700">
+            <span>Balance Due</span><span>Rs. {{ inv.balance_due|floatformat:0 }}</span>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="receipt-foot">
+        Thank you for shopping at <strong>{{ company.name|default:"My Phone" }}</strong>!
+        {% if company.receipt_footer %}<br>{{ company.receipt_footer }}{% endif %}
+        {% if inv.notes %}<br><em>{{ inv.notes }}</em>{% endif %}
+    </div>
+</div>
+
+<!-- ══ RETURNS / RESTOCK — screen only ═══════════════════════════════════════ -->
+<div class="no-print table-card" style="margin-top:1.5rem;max-width:680px">
+    <div style="padding:.75rem 1rem .25rem">
+        <strong>↩ Returns / Restock</strong>
+        <span style="color:var(--text-muted);font-size:.82rem">Returning an item adds it back to stock.</span>
+        {% if inv.status == 'returned' %}
+        <span class="badge badge-amber" style="margin-left:.5rem">Fully returned</span>
+        {% endif %}
+    </div>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Item</th>
+                <th style="text-align:center">Sold</th>
+                <th style="text-align:center">Returned</th>
+                <th style="text-align:right">Return now</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for l in lines %}
+            <tr>
+                <td>
+                    <strong>{{ l.product_name }}</strong>
+                    {% if l.imei %}<br><code style="font-size:.72rem;color:var(--text-muted)">IMEI: {{ l.imei }}</code>{% endif %}
+                </td>
+                <td style="text-align:center">{{ l.qty }}</td>
+                <td style="text-align:center">{{ l.returned_qty }}</td>
+                <td style="text-align:right">
+                    {% if l.remaining > 0 %}
+                    <form method="post" action="{% url 'web:invoice_line_return' l.pk %}"
+                        style="display:inline-flex;gap:.4rem;align-items:center;justify-content:flex-end"
+                        onsubmit="return confirm('Return this item back to stock?')">
+                        {% csrf_token %}
+                        <input type="number" name="qty" value="{{ l.remaining }}" min="1" max="{{ l.remaining }}"
+                            style="width:64px;padding:.25rem .4rem;font-size:.85rem" class="form-input" />
+                        <button type="submit" class="btn btn-secondary"
+                            style="padding:.25rem .7rem;font-size:.82rem">↩ Return</button>
+                    </form>
+                    {% else %}
+                    <span style="color:#16a34a;font-size:.85rem">✓ Returned</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- ══ TOKEN — prints with printToken() ══════════════════════════════════════ -->
+<div id="token" style="display:none;margin-top:1.5rem">
+    <div class="print-target"
+        style="width:300px;border:2px dashed #333;padding:16px;font-family:'Courier New',monospace;font-size:12px;background:#fff">
+        <div
+            style="text-align:center;font-size:14px;font-weight:900;border-bottom:1px solid #333;padding-bottom:8px;margin-bottom:8px">
+            {{ company.name|default:"My Phone"|upper }}
+        </div>
+        <div><strong>Inv:</strong> {{ inv.invoice_number }}</div>
+        <div><strong>Date:</strong> {{ inv.created_at|date:"d/m/Y H:i" }}</div>
+        <div><strong>Cust:</strong> {{ inv.customer_name|default:"Walk-in" }}</div>
+        <div><strong>Items:</strong> {{ inv.lines.count }}</div>
+        <div style="border-top:1px solid #333;margin-top:8px;padding-top:8px;text-align:right">
+            <strong>Total: Rs. {{ inv.grand_total|floatformat:0 }}</strong>
+        </div>
+        <div style="text-align:center;margin-top:8px;font-size:10px;color:#666">
+            {{ inv.get_payment_method_display|upper }}
+        </div>
+    </div>
+</div>
+
+<!-- WhatsApp: send the bill to the customer's number (if known) -->
+<script>
+    var BILL = {
+        shop: "{{ company.name|default:'My Phone'|escapejs }}",
+        addr: "{{ company.address|escapejs }}",
+        phone: "{{ inv.customer.phone|default:''|escapejs }}",
+        number: "{{ inv.invoice_number|escapejs }}",
+        customer: "{{ inv.customer_name|default:'Walk-in'|escapejs }}",
+        date: "{{ inv.created_at|date:'d M Y, g:i A'|escapejs }}",
+        subtotal: "{{ inv.subtotal|floatformat:0 }}",
+        discount: "{{ inv.discount_amount|floatformat:0 }}",
+        grand: "{{ inv.grand_total|floatformat:0 }}",
+        paid: "{{ inv.amount_paid|floatformat:0 }}",
+        balance: "{{ inv.balance_due|floatformat:0 }}",
+        lines: [
+            {% for l in inv.lines.all %}
+            { name: "{{ l.product_name|escapejs }}", qty: "{{ l.qty }}", total: "{{ l.line_total|floatformat:0 }}" }{% if not forloop.last %},{% endif %}
+            {% endfor %}
+        ]
+    };
+    function waSendBill() {
+        var t = "*" + BILL.shop + "*";
+        if (BILL.addr) t += "\n" + BILL.addr;
+        t += "\n\nInvoice: " + BILL.number + "\nDate: " + BILL.date +
+            "\nCustomer: " + BILL.customer + "\n\n";
+        BILL.lines.forEach(function (l) { t += l.name + "  x" + l.qty + "  Rs. " + l.total + "\n"; });
+        t += "\nSubtotal: Rs. " + BILL.subtotal;
+        if (parseFloat(BILL.discount) > 0) t += "\nDiscount: -Rs. " + BILL.discount;
+        t += "\n*Total: Rs. " + BILL.grand + "*\nPaid: Rs. " + BILL.paid;
+        if (parseFloat(BILL.balance) > 0) t += "\nBalance (Udhaar): Rs. " + BILL.balance;
+        t += "\n\nThank you for shopping with us!";
+        var phone = (BILL.phone || "").replace(/[^0-9]/g, "");
+        if (phone.charAt(0) === "0") phone = "92" + phone.slice(1);   // local → intl (PK)
+        var url = phone ? ("https://wa.me/" + phone + "?text=") : ("https://wa.me/?text=");
+        window.open(url + encodeURIComponent(t), "_blank");
+    }
+</script>
+
+<!-- Print logic: show only the target div, hide everything else -->
+<script>
+    function printBill() {
+        document.getElementById('bill').style.display = 'block';
+        document.getElementById('token').style.display = 'none';
+        window.print();
+    }
+    function printToken() {
+        document.getElementById('bill').style.display = 'none';
+        document.getElementById('token').style.display = 'block';
+        window.print();
+        // Restore after print dialog closes
+        setTimeout(function () {
+            document.getElementById('bill').style.display = 'block';
+            document.getElementById('token').style.display = 'none';
+        }, 500);
+    }
+</script>
+{% endblock %}

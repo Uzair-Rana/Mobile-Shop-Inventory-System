@@ -1,38 +1,38 @@
-# .
+# My Phone ERP
 
-This template should help get you started developing with Vue 3 in Vite.
+Inventory, sales, repairs and procurement system for a mobile phone shop.
+A Django server-rendered web app (`backend/`), shipped to Windows as a
+one-click installer.
 
-## Recommended IDE Setup
-
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
-
-## Recommended Browser Setup
-
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
-
-## Customize configuration
-
-See [Vite Configuration Reference](https://vite.dev/config/).
-
-## Project Setup
+## Run for development
 
 ```sh
-npm install
+cd backend
+python -m pip install -r requirements.txt
+python manage.py migrate
+python manage.py runserver
 ```
 
-### Compile and Hot-Reload for Development
+Open http://127.0.0.1:8000/. On first launch the app asks for the installation
+key, then you sign in (create a user with `python manage.py createsuperuser`).
 
-```sh
-npm run dev
+## Project layout
+
+- `backend/apps/web/` — the web UI (views, templates, static files)
+- `backend/apps/*` — domain apps (inventory, sales, procurement, repairs, ...);
+  `procurement` is the source of truth for stock
+- `backend/devnest/` — Django settings and URLs
+- `backend/launcher.py` — desktop launcher used by the packaged app
+- `installer/` — Inno Setup script and build notes
+
+## Build the Windows installer
+
+Requires Python 3.11+ and [Inno Setup 6](https://jrsoftware.org/isdl.php).
+From the repo root:
+
+```
+build_installer.bat
 ```
 
-### Compile and Minify for Production
-
-```sh
-npm run build
-```
+The installer is written to `dist_installer\MyPhoneERP-Setup.exe` — that single
+file is what you send to users. See `installer/BUILD_INSTALLER.md` for details.

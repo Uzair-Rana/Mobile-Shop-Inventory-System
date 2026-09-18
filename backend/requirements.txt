@@ -9,3 +9,6 @@ dj-database-url==2.2.0
 gunicorn==22.0.0
 whitenoise==6.7.0
 openpyxl==3.1.5
+waitress==3.0.0
+pyinstaller==6.10.0
+pystray==0.19.5

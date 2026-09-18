@@ -69,6 +69,7 @@ class InvoiceLine(models.Model):
     unit_price = models.DecimalField(max_digits=12, decimal_places=2)
     discount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     line_total = models.DecimalField(max_digits=12, decimal_places=2)
+    returned_qty = models.IntegerField(default=0)  # units of this line returned to stock
 
     def save(self, *args, **kwargs):
         self.line_total = (self.unit_price * self.qty) - self.discount

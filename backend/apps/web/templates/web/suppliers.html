@@ -1,0 +1,41 @@
+{% extends "web/base.html" %}
+{% block content %}
+<div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:1rem">
+    <div>
+        <h1 class="page-title gradient-text">Suppliers</h1>
+        <p class="page-subtitle">Supplier directory</p>
+    </div>
+    <a href="{% url 'web:supplier_add' %}" class="btn btn-primary">+ Add Supplier</a>
+</div>
+
+<div class="toolbar">
+    <form method="get" class="toolbar" style="gap:.75rem;margin:0;width:100%">
+        <div class="search-box">
+            <span class="search-ico">🔍</span>
+            <input type="search" name="q" value="{{ q }}" placeholder="Search name or phone…" />
+        </div>
+        <button type="submit" class="btn btn-secondary">Search</button>
+    </form>
+</div>
+
+<div class="table-card">
+    <table class="table">
+        <thead>
+            <tr><th>Name</th><th>Company</th><th>Phone</th><th style="text-align:right">Purchases</th><th style="text-align:right">Total Spend</th></tr>
+        </thead>
+        <tbody>
+            {% for s in suppliers %}
+            <tr>
+                <td><a href="{% url 'web:supplier_detail' s.pk %}" style="color:var(--brand);font-weight:700">{{ s.name }}</a></td>
+                <td>{{ s.company|default:"—" }}</td>
+                <td>{{ s.phone|default:"—" }}</td>
+                <td style="text-align:right">{{ s.purchases }}</td>
+                <td style="text-align:right">Rs. {{ s.spend|default:0|floatformat:0 }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" style="text-align:center;padding:3rem;color:var(--text-muted)">No suppliers found.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

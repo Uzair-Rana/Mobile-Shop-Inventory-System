@@ -1,0 +1,393 @@
+{% extends "web/base.html" %}
+{% block content %}
+<div
+    style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem">
+    <div>
+        <h1 class="page-title gradient-text">{{ title }}</h1>
+        <p class="page-subtitle">
+            {% if mode == 'edit' %}Editing procurement — stock will be reversed then re-applied on save.
+            {% else %}Add a supplier entry. Stock is auto-updated on save.{% endif %}
+        </p>
+    </div>
+    <a href="{% url 'web:procurement_list' %}" class="btn btn-secondary">← Back</a>
+</div>
+
+<!-- ── Autocomplete sources (existing catalog — select instead of re-creating) ── -->
+<datalist id="existing-product-names">
+    {% for row in existing_catalog %}<option value="{{ row.name }}">{{ row.sku }}</option>{% endfor %}
+</datalist>
+<datalist id="existing-product-skus">
+    {% for row in existing_catalog %}{% if row.sku %}<option value="{{ row.sku }}">{{ row.name }}</option>{% endif %}{% endfor %}
+</datalist>
+
+<form method="post" id="proc-form">
+    {% csrf_token %}
+    {{ formset.management_form }}
+
+    <!-- ── Header ──────────────────────────────────────────────────────────── -->
+    <div class="form-card" style="margin-bottom:1.25rem">
+        <p class="section-label">Procurement Header</p>
+        <div class="form-grid-2">
+            <div class="form-field">
+                <label class="form-label">Supplier</label>
+                {{ form.supplier }}
+                {{ form.new_supplier }}
+                <small style="color:var(--text-muted)">Pick an existing supplier, or type a new name to create one.</small>
+                {% if form.supplier.errors %}<div class="form-error">{{ form.supplier.errors.0 }}</div>{% endif %}
+                {% if form.new_supplier.errors %}<div class="form-error">{{ form.new_supplier.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="form-field">
+                <label class="form-label">Date *</label>
+                {{ form.date }}
+                {% if form.date.errors %}<div class="form-error">{{ form.date.errors.0 }}</div>{% endif %}
+            </div>
+        </div>
+        <div class="form-grid-2" style="margin-top:.75rem">
+            <div class="form-field">
+                <label class="form-label">Supplier Invoice #</label>
+                {{ form.invoice_no }}
+            </div>
+            <div class="form-field">
+                <label class="form-label">Notes</label>
+                {{ form.notes }}
+            </div>
+        </div>
+        {% if form.non_field_errors %}
+        <div class="form-error" style="margin-top:.5rem">{{ form.non_field_errors }}</div>
+        {% endif %}
+    </div>
+
+    <!-- ── Line items ───────────────────────────────────────────────────────── -->
+    <div class="table-card" style="margin-bottom:1.25rem;overflow:visible">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:.75rem 1.25rem .5rem">
+            <p
+                style="font-size:.8rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:0">
+                Line Items — each saves stock automatically
+            </p>
+            <button type="button" id="add-row" class="btn btn-secondary" style="padding:.3rem .9rem;font-size:.85rem">+
+                Add Line</button>
+        </div>
+
+        <div id="item-rows">
+            {% for item_form in formset %}
+            <div class="item-row {% if item_form.instance.pk and item_form.instance.applied %}applied-row{% endif %}"
+                data-row="{{ forloop.counter0 }}">
+
+                {% for hidden in item_form.hidden_fields %}{{ hidden }}{% endfor %}
+
+                <!-- Delete checkbox (hidden visually, toggled by button) -->
+                <div style="display:none">{{ item_form.DELETE }}</div>
+
+                <div class="item-row-header">
+                    <span class="row-num">Row {{ forloop.counter }}</span>
+                    {% if item_form.instance.pk and item_form.instance.applied %}
+                    <span style="color:#16a34a;font-size:.78rem;font-weight:600">✓ Stock already applied</span>
+                    {% endif %}
+                    <button type="button" class="del-row-btn btn"
+                        style="margin-left:auto;padding:.2rem .6rem;font-size:.8rem;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5"
+                        {% if item_form.instance.pk and item_form.instance.applied %}title="Will reverse stock on save"
+                        {% endif %}>
+                        ✕ Remove
+                    </button>
+                </div>
+
+                <div class="form-grid-3" style="margin-top:.5rem">
+                    <!-- Category -->
+                    <div class="form-field">
+                        <label class="form-label">Category *</label>
+                        {{ item_form.category }}
+                        {% if item_form.category.errors %}<div class="form-error">{{ item_form.category.errors.0 }}
+                        </div>{% endif %}
+                    </div>
+                    <!-- Product name -->
+                    <div class="form-field">
+                        <label class="form-label">Product / Part Name *</label>
+                        {{ item_form.product }}
+                        {% if item_form.product.errors %}<div class="form-error">{{ item_form.product.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                    <!-- Brand -->
+                    <div class="form-field">
+                        <label class="form-label">Brand</label>
+                        {{ item_form.brand }}
+                    </div>
+                </div>
+
+                <div class="form-grid-3" style="margin-top:.5rem">
+                    <!-- SKU -->
+                    <div class="form-field">
+                        <label class="form-label">SKU <small style="color:var(--text-muted)">(for
+                                matching)</small></label>
+                        {{ item_form.sku }}
+                    </div>
+                    <!-- Qty -->
+                    <div class="form-field">
+                        <label class="form-label">Qty *</label>
+                        {{ item_form.qty }}
+                        {% if item_form.qty.errors %}<div class="form-error">{{ item_form.qty.errors.0 }}</div>{% endif %}
+                    </div>
+                    <!-- Unit cost -->
+                    <div class="form-field">
+                        <label class="form-label">Unit Cost (Rs.)</label>
+                        {{ item_form.unit_cost }}
+                    </div>
+                </div>
+
+                <!-- Sell price on its own row -->
+                <div class="form-grid-3" style="margin-top:.5rem">
+                    <div class="form-field">
+                        <label class="form-label">Sell Price (Rs.)</label>
+                        {{ item_form.sell_price }}
+                    </div>
+                </div>
+
+                <!-- IMEI textarea — shown/hidden by JS -->
+                <div class="form-field imei-section" style="margin-top:.5rem;display:none">
+                    <label class="form-label">
+                        IMEIs <small style="color:var(--text-muted)">— one per line or comma-separated; qty must match
+                            count</small>
+                    </label>
+                    {{ item_form.imeis }}
+                    {% if item_form.imeis.errors %}<div class="form-error">{{ item_form.imeis.errors.0 }}</div>{% endif %}
+                </div>
+
+                <!-- Non-field errors for this row -->
+                {% if item_form.non_field_errors %}
+                <div class="form-error" style="margin-top:.4rem">{{ item_form.non_field_errors }}</div>
+                {% endif %}
+
+                <hr style="border:none;border-top:1px solid var(--border);margin:.75rem 0 .25rem">
+            </div>
+            {% endfor %}
+        </div><!-- #item-rows -->
+    </div>
+
+    <!-- ── Actions ──────────────────────────────────────────────────────────── -->
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary" style="min-width:160px">
+            {% if mode == 'edit' %}💾 Save Changes{% else %}✅ Save & Apply Stock{% endif %}
+        </button>
+        {% if mode == 'edit' %}
+        <a href="{% url 'web:procurement_detail' proc.pk %}" class="btn btn-secondary">Cancel</a>
+        {% else %}
+        <a href="{% url 'web:procurement_list' %}" class="btn btn-secondary">Cancel</a>
+        {% endif %}
+    </div>
+
+</form>
+
+<!-- ── Added this session (stays on this page after each save) ──────────── -->
+{% if recent %}
+<div class="table-card no-print" style="margin-top:1.75rem;border:1px solid #bbf7d0">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:.75rem 1.25rem .5rem">
+        <p class="section-label" style="margin:0;color:#16a34a">✅ Added this session — stock updated automatically</p>
+        <a href="?clear=1" class="btn btn-secondary" style="padding:.25rem .8rem;font-size:.8rem">Clear list</a>
+    </div>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Entry</th>
+                <th>Supplier</th>
+                <th>Item</th>
+                <th style="text-align:right">Qty</th>
+                <th style="text-align:right">Unit Cost</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in recent %}
+            {% for it in p.items.all %}
+            <tr>
+                <td><strong>#{{ p.pk }}</strong></td>
+                <td>{{ p.supplier.name|default:"—" }}</td>
+                <td>
+                    <strong>{{ it.product }}</strong>
+                    <span class="badge badge-gray" style="margin-left:.35rem">{{ it.get_category_display }}</span>
+                </td>
+                <td style="text-align:right">{{ it.qty }}</td>
+                <td style="text-align:right">Rs. {{ it.unit_cost|floatformat:0 }}</td>
+                <td style="text-align:right">
+                    <a href="{% url 'web:procurement_detail' p.pk %}" style="color:var(--brand)">View / Print</a>
+                </td>
+            </tr>
+            {% endfor %}
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<!-- ── Empty row template (cloned by JS) ──────────────────────────────── -->
+<template id="empty-row-tpl">
+    <div class="item-row" data-row="__prefix__">
+        <input type="hidden" name="items-__prefix__-id" value="">
+        <div style="display:none"><input type="checkbox" name="items-__prefix__-DELETE" id="items-__prefix__-DELETE">
+        </div>
+        <div class="item-row-header">
+            <span class="row-num">Row __rownum__</span>
+            <button type="button" class="del-row-btn btn"
+                style="margin-left:auto;padding:.2rem .6rem;font-size:.8rem;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5">
+                ✕ Remove
+            </button>
+        </div>
+        <div class="form-grid-3" style="margin-top:.5rem">
+            <div class="form-field">
+                <label class="form-label">Category *</label>
+                <select name="items-__prefix__-category" class="form-select cat-select">
+                    <option value="">— Choose —</option>
+                    <option value="imei">IMEI Devices</option>
+                    <option value="accessory">Accessories</option>
+                    <option value="spare_part">Spare Parts</option>
+                    <option value="product">Products</option>
+                </select>
+            </div>
+            <div class="form-field">
+                <label class="form-label">Product / Part Name *</label>
+                <input type="text" name="items-__prefix__-product" class="form-input" placeholder="Name / model"
+                    list="existing-product-names" autocomplete="off">
+            </div>
+            <div class="form-field">
+                <label class="form-label">Brand</label>
+                <input type="text" name="items-__prefix__-brand" class="form-input" placeholder="Brand">
+            </div>
+        </div>
+        <div class="form-grid-3" style="margin-top:.5rem">
+            <div class="form-field">
+                <label class="form-label">SKU</label>
+                <input type="text" name="items-__prefix__-sku" class="form-input" placeholder="SKU (optional)"
+                    list="existing-product-skus" autocomplete="off">
+            </div>
+            <div class="form-field">
+                <label class="form-label">Qty *</label>
+                <input type="number" name="items-__prefix__-qty" class="form-input" min="1" value="1">
+            </div>
+            <div class="form-field">
+                <label class="form-label">Unit Cost (Rs.)</label>
+                <input type="number" name="items-__prefix__-unit_cost" class="form-input" min="0" step="0.01" value="0">
+            </div>
+        </div>
+        <div class="form-grid-3" style="margin-top:.5rem">
+            <div class="form-field">
+                <label class="form-label">Sell Price (Rs.)</label>
+                <input type="number" name="items-__prefix__-sell_price" class="form-input" min="0" step="0.01"
+                    value="0">
+            </div>
+        </div>
+        <div class="form-field imei-section" style="margin-top:.5rem;display:none">
+            <label class="form-label">IMEIs <small style="color:var(--text-muted)">— one per line or
+                    comma-separated</small></label>
+            <textarea name="items-__prefix__-imeis" class="form-textarea imei-field" rows="2"
+                placeholder="One IMEI per line (or comma separated)"></textarea>
+        </div>
+        <hr style="border:none;border-top:1px solid var(--border);margin:.75rem 0 .25rem">
+    </div>
+</template>
+
+<!-- ── Inline styles ───────────────────────────────────────────────────── -->
+<style>
+    .item-row {
+        padding: .75rem 1.25rem .5rem;
+        background: var(--bg-card);
+        border-bottom: 1px solid var(--border);
+        transition: background .15s;
+    }
+
+    .item-row.applied-row {
+        background: #f0fdf4;
+    }
+
+    .item-row.deleted-row {
+        opacity: .4;
+        pointer-events: none;
+    }
+
+    .item-row-header {
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+    }
+
+    .row-num {
+        font-size: .7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .06em;
+        color: var(--text-muted);
+    }
+</style>
+
+<!-- ── JavaScript ─────────────────────────────────────────────────────── -->
+<script>
+    (function () {
+        /* ─── IMEI show/hide ────────────────────────────────────────────────── */
+        function syncImei(row) {
+            var sel = row.querySelector('.cat-select');
+            var imeiSection = row.querySelector('.imei-section');
+            if (!sel || !imeiSection) return;
+            imeiSection.style.display = sel.value === 'imei' ? 'block' : 'none';
+        }
+
+        function attachCatListener(row) {
+            var sel = row.querySelector('.cat-select');
+            if (!sel) return;
+            sel.addEventListener('change', function () { syncImei(row); });
+            syncImei(row); // initial state (for edit mode)
+        }
+
+        /* ─── Delete row ────────────────────────────────────────────────────── */
+        function attachDelListener(row) {
+            var btn = row.querySelector('.del-row-btn');
+            if (!btn) return;
+            btn.addEventListener('click', function () {
+                var chk = row.querySelector('input[type=checkbox][name$="-DELETE"]');
+                if (chk) {
+                    chk.checked = true;
+                    row.classList.add('deleted-row');
+                } else {
+                    // Brand-new cloned row — just remove from DOM
+                    row.remove();
+                    renumber();
+                }
+            });
+        }
+
+        /* ─── Renumber visible rows ─────────────────────────────────────────── */
+        function renumber() {
+            var rows = document.querySelectorAll('#item-rows .item-row:not(.deleted-row)');
+            rows.forEach(function (r, i) {
+                var lbl = r.querySelector('.row-num');
+                if (lbl) lbl.textContent = 'Row ' + (i + 1);
+            });
+        }
+
+        /* ─── Add new row ───────────────────────────────────────────────────── */
+        document.getElementById('add-row').addEventListener('click', function () {
+            var tpl = document.getElementById('empty-row-tpl');
+            var mgmt = document.getElementById('id_items-TOTAL_FORMS');
+            var idx = parseInt(mgmt.value, 10);
+            var html = tpl.innerHTML
+                .replace(/__prefix__/g, idx)
+                .replace(/__rownum__/g, idx + 1);
+
+            var wrapper = document.createElement('div');
+            wrapper.innerHTML = html;
+            var newRow = wrapper.firstElementChild;
+
+            document.getElementById('item-rows').appendChild(newRow);
+            mgmt.value = idx + 1;
+
+            attachCatListener(newRow);
+            attachDelListener(newRow);
+            renumber();
+        });
+
+        /* ─── Initialise existing rows ──────────────────────────────────────── */
+        document.querySelectorAll('#item-rows .item-row').forEach(function (row) {
+            attachCatListener(row);
+            attachDelListener(row);
+        });
+
+        renumber();
+    })();
+</script>
+{% endblock %}

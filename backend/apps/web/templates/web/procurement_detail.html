@@ -1,0 +1,145 @@
+{% extends "web/base.html" %}
+{% block content %}
+<div class="no-print"
+    style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem">
+    <div>
+        <h1 class="page-title gradient-text">Procurement #{{ proc.pk }}</h1>
+        <p class="page-subtitle">
+            {{ proc.supplier.name|default:"No Supplier" }}
+            {% if proc.invoice_no %}&nbsp;·&nbsp;Inv # {{ proc.invoice_no }}{% endif %}
+            &nbsp;·&nbsp;{{ proc.date|date:"d M Y" }}
+        </p>
+    </div>
+    <div style="display:flex;gap:.6rem;flex-wrap:wrap">
+        <button type="button" onclick="window.print()" class="btn btn-secondary">🖨 Print</button>
+        <a href="{% url 'web:procurement_edit' proc.pk %}" class="btn btn-secondary">✏ Edit</a>
+        <form method="post" action="{% url 'web:procurement_delete' proc.pk %}" style="display:inline"
+            onsubmit="return confirm('Delete this procurement and REVERSE all stock changes?')">
+            {% csrf_token %}
+            <button class="btn" style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5">🗑 Delete</button>
+        </form>
+        <a href="{% url 'web:procurement_list' %}" class="btn btn-secondary">← Back</a>
+    </div>
+</div>
+
+<!-- Summary strip -->
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin-bottom:1.5rem">
+    <div class="stat-card">
+        <div class="stat-label">Items</div>
+        <div class="stat-value">{{ items|length }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Total Value</div>
+        <div class="stat-value">Rs. {{ proc.total|floatformat:0 }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Date</div>
+        <div class="stat-value" style="font-size:1.1rem">{{ proc.date|date:"d M Y" }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Created By</div>
+        <div class="stat-value" style="font-size:1.1rem">{% if proc.created_by %}{{ proc.created_by.get_full_name|default:proc.created_by.username }}{% else %}—{% endif %}</div>
+    </div>
+</div>
+
+{% if proc.notes %}
+<div class="info-card" style="margin-bottom:1.5rem">
+    <p class="section-label">Notes</p>
+    <p style="margin:0;color:var(--text-muted)">{{ proc.notes }}</p>
+</div>
+{% endif %}
+
+<!-- Line items -->
+<div class="table-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:.75rem 1rem .25rem">
+        <h2
+            style="font-size:.8rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:0">
+            Line Items</h2>
+    </div>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Category</th>
+                <th>Product / Part</th>
+                <th>Brand</th>
+                <th>SKU</th>
+                <th style="text-align:right">Qty</th>
+                <th style="text-align:right">Unit Cost</th>
+                <th style="text-align:right">Sell Price</th>
+                <th style="text-align:right">Line Total</th>
+                <th>IMEIs</th>
+                <th>Applied</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td>{{ forloop.counter }}</td>
+                <td>
+                    <span class="badge
+                        {% if item.category == 'imei' %}badge-blue
+                        {% elif item.category == 'spare_part' %}badge-amber
+                        {% elif item.category == 'accessory' %}badge-green
+                        {% else %}badge-gray{% endif %}">
+                        {{ item.get_category_display }}
+                    </span>
+                </td>
+                <td><strong>{{ item.product }}</strong></td>
+                <td>{{ item.brand|default:"—" }}</td>
+                <td><code style="font-size:.8rem">{{ item.sku|default:"—" }}</code></td>
+                <td style="text-align:right">{{ item.qty }}</td>
+                <td style="text-align:right">Rs. {{ item.unit_cost|floatformat:0 }}</td>
+                <td style="text-align:right">Rs. {{ item.sell_price|floatformat:0 }}</td>
+                <td style="text-align:right"><strong>Rs. {{ item.line_total|floatformat:0 }}</strong></td>
+                <td style="font-size:.75rem;color:var(--text-muted);max-width:180px;word-break:break-all">
+                    {% if item.imeis %}{{ item.imeis }}{% else %}—{% endif %}
+                </td>
+                <td>
+                    {% if item.applied %}
+                    <span style="color:#16a34a;font-size:.85rem">✓ Applied</span>
+                    {% else %}
+                    <span style="color:#dc2626;font-size:.85rem">✗ Pending</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="11" style="text-align:center;padding:2rem;color:var(--text-muted)">No items.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        {% if items %}
+        <tfoot>
+            <tr style="background:var(--bg-muted)">
+                <td colspan="8" style="text-align:right;font-weight:700">Grand Total</td>
+                <td style="text-align:right;font-weight:700;color:var(--brand)">Rs. {{ proc.total|floatformat:0 }}</td>
+                <td colspan="2"></td>
+            </tr>
+        </tfoot>
+        {% endif %}
+    </table>
+</div>
+
+<!-- Stock links -->
+{% for item in items %}
+{% if item.applied %}
+<div style="margin-top:.4rem;font-size:.82rem;color:var(--text-muted);padding-left:.5rem">
+    {% if item.linked_product %}
+    &rarr; Linked to product:
+    <a href="{% url 'web:products' %}?q={{ item.linked_product.sku }}" style="color:var(--brand)">
+        {{ item.linked_product.name }} ({{ item.linked_product.sku }})
+    </a>
+    {% elif item.linked_spare %}
+    &rarr; Linked to spare part:
+    <a href="{% url 'web:spare_part_detail' item.linked_spare.pk %}" style="color:var(--brand)">
+        {{ item.linked_spare.name }}
+    </a>
+    {% elif item.category == 'imei' %}
+    &rarr; IMEI units added to
+    <a href="{% url 'web:devices' %}" style="color:var(--brand)">Devices</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endfor %}
+{% endblock %}

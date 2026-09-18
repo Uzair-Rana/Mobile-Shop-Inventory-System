@@ -3,9 +3,8 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
-from django.utils import timezone
-from .models import RepairJob, RepairStatusLog, RepairPart
-from .serializers import RepairJobSerializer, RepairStatusLogSerializer, RepairPartSerializer
+from .models import RepairJob, RepairStatusLog
+from .serializers import RepairJobSerializer
 
 
 class RepairJobViewSet(viewsets.ModelViewSet):

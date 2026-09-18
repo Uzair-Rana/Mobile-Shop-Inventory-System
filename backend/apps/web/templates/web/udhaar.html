@@ -1,0 +1,116 @@
+{% extends "web/base.html" %}
+{% block content %}
+<div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:1.25rem">
+    <div>
+        <h1 class="page-title gradient-text">Udhaar (Credit)</h1>
+        <p class="page-subtitle">Outstanding balances to collect — pending invoices &amp; repairs</p>
+    </div>
+    <a href="{% url 'web:dashboard' %}" class="btn btn-secondary">← Dashboard</a>
+</div>
+
+<div class="toolbar">
+    <form method="get" class="toolbar" style="gap:.75rem;margin:0;width:100%">
+        <div class="search-box">
+            <span class="search-ico">🔍</span>
+            <input type="search" name="q" value="{{ q }}" placeholder="Search customer, invoice # or job #…" />
+        </div>
+        <button type="submit" class="btn btn-secondary">Search</button>
+    </form>
+</div>
+
+<!-- Totals -->
+<div class="kpi-grid" style="margin-bottom:1.5rem">
+    <div class="stat-cell">
+        <div class="stat-label">Total Udhaar</div>
+        <div class="stat-value" style="color:#be123c">Rs. {{ total|floatformat:0 }}</div>
+    </div>
+    <div class="stat-cell">
+        <div class="stat-label">From Invoices</div>
+        <div class="stat-value">Rs. {{ inv_total|floatformat:0 }}</div>
+    </div>
+    <div class="stat-cell">
+        <div class="stat-label">From Repairs</div>
+        <div class="stat-value">Rs. {{ rep_total|floatformat:0 }}</div>
+    </div>
+</div>
+
+<!-- Pending invoices -->
+<div class="table-card" style="margin-bottom:1.5rem">
+    <div style="padding:.75rem 1rem .25rem">
+        <h2 style="font-size:.8rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:0">
+            Pending Invoices</h2>
+    </div>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Invoice #</th>
+                <th>Customer</th>
+                <th>Date</th>
+                <th style="text-align:right">Total</th>
+                <th style="text-align:right">Paid</th>
+                <th style="text-align:right">Balance</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for inv in invoices %}
+            <tr>
+                <td><strong>{{ inv.invoice_number }}</strong></td>
+                <td>{{ inv.customer_name|default:"Walk-in" }}
+                    {% if inv.customer.phone %}<br><small style="color:var(--text-muted)">{{ inv.customer.phone }}</small>{% endif %}
+                </td>
+                <td>{{ inv.created_at|date:"d M Y" }}</td>
+                <td style="text-align:right">Rs. {{ inv.grand_total|floatformat:0 }}</td>
+                <td style="text-align:right;color:#15803d">Rs. {{ inv.amount_paid|floatformat:0 }}</td>
+                <td style="text-align:right;font-weight:700;color:#be123c">Rs. {{ inv.balance_due|floatformat:0 }}</td>
+                <td style="text-align:right">
+                    <a href="{% url 'web:invoice_detail' inv.pk %}" class="btn btn-primary"
+                        style="padding:.25rem .7rem;font-size:.8rem">Receive →</a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-muted)">No pending invoices. 🎉</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Repair balances -->
+<div class="table-card">
+    <div style="padding:.75rem 1rem .25rem">
+        <h2 style="font-size:.8rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:0">
+            Repair Balances</h2>
+    </div>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Job #</th>
+                <th>Customer</th>
+                <th>Device</th>
+                <th style="text-align:right">Final</th>
+                <th style="text-align:right">Paid</th>
+                <th style="text-align:right">Balance</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in repairs %}
+            <tr>
+                <td><strong>{{ r.job_number }}</strong></td>
+                <td>{{ r.customer_name }}</td>
+                <td>{{ r.device_model }}</td>
+                <td style="text-align:right">Rs. {{ r.final_cost|floatformat:0 }}</td>
+                <td style="text-align:right;color:#15803d">Rs. {{ r.amount_paid|floatformat:0 }}</td>
+                <td style="text-align:right;font-weight:700;color:#be123c">Rs. {{ r.balance|floatformat:0 }}</td>
+                <td style="text-align:right">
+                    <a href="{% url 'web:repair_detail' r.pk %}" class="btn btn-primary"
+                        style="padding:.25rem .7rem;font-size:.8rem">Receive →</a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-muted)">No repair balances. 🎉</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

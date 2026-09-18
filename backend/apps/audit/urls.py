@@ -1,4 +1,4 @@
-from django.urls import path, include
+from django.urls import path
 from rest_framework.routers import DefaultRouter
 from apps.users.views import UserViewSet, RoleViewSet
 from . import views

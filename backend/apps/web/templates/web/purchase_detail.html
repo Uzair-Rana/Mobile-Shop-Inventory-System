@@ -1,0 +1,35 @@
+{% extends "web/base.html" %}
+{% block content %}
+<div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem">
+    <div>
+        <h1 class="page-title gradient-text">PO {{ order.order_number }}</h1>
+        <p class="page-subtitle">{{ order.supplier.name|default:"—" }} · {{ order.created_at|date:"d M Y" }}</p>
+    </div>
+    <a href="{% url 'web:purchases' %}" class="btn btn-secondary">← Back</a>
+</div>
+
+<div class="info-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+        <h2 style="font-size:1rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:0">Order Lines</h2>
+        <span class="badge {% if order.status == 'received' %}badge-green{% else %}badge-gray{% endif %}">{{ order.get_status_display }}</span>
+    </div>
+    <table class="table">
+        <thead>
+            <tr><th>Product</th><th style="text-align:right">Qty Ordered</th><th style="text-align:right">Qty Received</th><th style="text-align:right">Unit Cost</th><th style="text-align:right">Total</th></tr>
+        </thead>
+        <tbody>
+            {% for l in order.lines.all %}
+            <tr>
+                <td>{{ l.product_name|default:l.product }}</td>
+                <td style="text-align:right">{{ l.qty_ordered }}</td>
+                <td style="text-align:right">{{ l.qty_received }}</td>
+                <td style="text-align:right">Rs. {{ l.unit_cost|floatformat:0 }}</td>
+                <td style="text-align:right">Rs. {{ l.line_total|floatformat:0 }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text-muted)">No lines.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

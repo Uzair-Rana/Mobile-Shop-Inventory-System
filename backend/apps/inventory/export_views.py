@@ -65,7 +65,6 @@ def export_products_excel(request):
 
     # Colour palette matching the brand
     BRAND_RED  = 'E11D48'
-    HEADER_BG  = 'FFF1F2'
     ALT_ROW    = 'FEF2F5'
 
     # Header row

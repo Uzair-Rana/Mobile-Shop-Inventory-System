@@ -1,0 +1,247 @@
+{% extends "web/base.html" %}
+{% load web_extras %}
+{% block content %}
+
+<!-- Screen toolbar — hidden on print -->
+<div class="no-print"
+    style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem">
+    <div>
+        <h1 class="page-title gradient-text">Job {{ job.job_number }}</h1>
+        <p class="page-subtitle">{{ job.customer_name }} · {{ job.device_model }}</p>
+    </div>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+        <button onclick="printToken()" class="btn btn-primary">🎫 Print Token</button>
+        <a href="{% url 'web:repairs' %}" class="btn btn-secondary">← Back</a>
+    </div>
+</div>
+
+<!-- ══ JOB TOKEN — prints with printToken() ═════════════════════════════════ -->
+<div id="repair-token" style="display:none">
+    <div class="print-target"
+        style="width:300px;border:2px solid #333;padding:16px;font-family:'Courier New',monospace;font-size:11px;background:#fff">
+        <div style="text-align:center;border-bottom:2px dashed #333;padding-bottom:10px;margin-bottom:10px">
+            <div style="font-size:15px;font-weight:900;letter-spacing:.05em">MY PHONE</div>
+            <div style="font-size:10px;color:#666;margin-top:2px">REPAIR WORKSHOP</div>
+        </div>
+
+        <div style="margin-bottom:8px">
+            <div style="font-size:13px;font-weight:900">JOB: {{ job.job_number }}</div>
+            <div>Date: {{ job.created_at|date:"d/m/Y H:i" }}</div>
+        </div>
+
+        <div style="border-top:1px dashed #999;padding-top:8px;margin-top:8px">
+            <div><strong>Customer:</strong> {{ job.customer_name }}</div>
+            {% if job.customer_phone %}<div><strong>Phone:</strong> {{ job.customer_phone }}</div>{% endif %}
+        </div>
+
+        <div style="border-top:1px dashed #999;padding-top:8px;margin-top:8px">
+            <div><strong>Device:</strong> {{ job.device_model }}</div>
+            {% if job.device_imei %}<div><strong>IMEI:</strong> {{ job.device_imei }}</div>{% endif %}
+        </div>
+
+        <div style="border-top:1px dashed #999;padding-top:8px;margin-top:8px">
+            <div><strong>Fault:</strong></div>
+            <div style="margin-top:3px;font-size:10px">{{ job.fault_description }}</div>
+        </div>
+
+        <div
+            style="border-top:1px dashed #999;padding-top:8px;margin-top:8px;display:flex;justify-content:space-between">
+            <span><strong>Estimate:</strong></span>
+            <span><strong>Rs. {{ job.estimated_cost|floatformat:0 }}</strong></span>
+        </div>
+
+        <div
+            style="border-top:1px dashed #999;padding-top:8px;margin-top:8px;text-align:center;font-size:10px;color:#666">
+            Please keep this token.<br>
+            Collect your device with this slip.
+        </div>
+    </div>
+</div>
+
+<!-- ══ SCREEN VIEW ══════════════════════════════════════════════════════════ -->
+<div class="detail-grid no-print">
+    <div style="display:flex;flex-direction:column;gap:1rem">
+
+        <!-- Job Details -->
+        <div class="info-card">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+                <h2
+                    style="font-size:1rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:0">
+                    Job Details</h2>
+                <span class="badge
+          {% if job.status == 'delivered' %}badge-green
+          {% elif job.status == 'ready' %}badge-blue
+          {% elif job.status == 'cancelled' %}badge-red
+          {% elif job.status == 'in_repair' or job.status == 'in_progress' %}badge-orange
+          {% elif job.status == 'waiting_parts' %}badge-yellow
+          {% else %}badge-gray{% endif %}">
+                    {{ job.get_status_display }}
+                </span>
+            </div>
+            <div class="info-row">
+                <div class="info-field"><span class="info-label">Customer</span><span class="info-value">{{ job.customer_name }}</span></div>
+                <div class="info-field"><span class="info-label">Phone</span><span class="info-value">{{ job.customer_phone|default:"—" }}</span></div>
+                <div class="info-field"><span class="info-label">Device</span><span class="info-value">{{ job.device_model }}</span></div>
+                <div class="info-field"><span class="info-label">IMEI</span><span class="info-value"
+                        style="font-family:ui-monospace,monospace">{{ job.device_imei|default:"—" }}</span></div>
+                <div class="info-field"><span class="info-label">Technician</span><span class="info-value">{% if job.technician %}{{ job.technician.get_full_name|default:job.technician.username }}{% else %}Unassigned{% endif %}</span>
+                </div>
+                <div class="info-field"><span class="info-label">Received</span><span class="info-value">{{ job.created_at|date:"d M Y, g:i A" }}</span></div>
+            </div>
+
+            <p class="section-label">Fault Description</p>
+            <p style="font-size:.9375rem;color:var(--text-secondary);line-height:1.6">{{ job.fault_description }}</p>
+
+            {% if job.diagnosis %}
+            <p class="section-label">Diagnosis</p>
+            <p style="font-size:.9375rem;color:var(--text-secondary);line-height:1.6">{{ job.diagnosis }}</p>
+            {% endif %}
+        </div>
+
+        <!-- Parts Used -->
+        {% if job.parts.all %}
+        <div class="info-card">
+            <h2
+                style="font-size:1rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:0 0 1rem">
+                Parts Used</h2>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Part Name</th>
+                        <th style="text-align:right">Qty</th>
+                        <th style="text-align:right">Cost</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in job.parts.all %}
+                    <tr>
+                        <td>{{ p.name }}</td>
+                        <td style="text-align:right">{{ p.qty }}</td>
+                        <td style="text-align:right">Rs. {{ p.cost|floatformat:0 }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Right column: costing + history -->
+    <div style="display:flex;flex-direction:column;gap:1rem">
+
+        <!-- Costing -->
+        <div class="info-card">
+            <h2
+                style="font-size:1rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:0 0 1rem">
+                Costing</h2>
+            <div style="display:flex;flex-direction:column;gap:.75rem">
+                <div class="stat-cell">
+                    <div class="stat-label">Estimated Cost</div>
+                    <div class="stat-value" style="font-size:1.3rem">Rs. {{ job.estimated_cost|floatformat:0 }}</div>
+                </div>
+                <div class="stat-cell">
+                    <div class="stat-label">Final Cost</div>
+                    <div class="stat-value" style="font-size:1.3rem;color:var(--brand-500)">Rs. {{ job.final_cost|floatformat:0 }}</div>
+                </div>
+                <div class="stat-cell">
+                    <div class="stat-label">Amount Paid</div>
+                    <div class="stat-value" style="font-size:1.3rem;color:#15803d">Rs. {{ job.amount_paid|floatformat:0 }}</div>
+                </div>
+                <div class="stat-cell">
+                    <div class="stat-label">Balance / Udhaar</div>
+                    <div class="stat-value" style="font-size:1.3rem;{% if job.balance > 0 %}color:#be123c{% else %}color:#15803d{% endif %}">
+                        Rs. {{ job.balance|floatformat:0 }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Manage / Complete Repair -->
+        <div class="info-card">
+            <h2 style="font-size:1rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:0 0 1rem">
+                Manage / Complete Repair</h2>
+            <form method="post" action="{% url 'web:repair_update' job.pk %}">
+                {% csrf_token %}
+                <div class="form-grid-2">
+                    <div class="form-field">
+                        <label class="form-label">Status</label>
+                        <select name="status" class="form-select">
+                            {% for val, label in statuses %}
+                            <option value="{{ val }}" {% if job.status == val %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">Technician</label>
+                        <select name="technician" class="form-select">
+                            <option value="">— Unassigned —</option>
+                            {% for t in technicians %}
+                            <option value="{{ t.pk }}" {% if job.technician_id == t.pk %}selected{% endif %}>{{ t.get_full_name|default:t.username }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">Final Cost (Rs.)</label>
+                        <input type="number" name="final_cost" class="form-input" min="0" step="1"
+                            value="{{ job.final_cost|floatformat:0 }}" />
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">Amount Paid (Rs.) <small style="color:var(--text-muted)">— rest is udhaar</small></label>
+                        <input type="number" name="amount_paid" class="form-input" min="0" step="1"
+                            value="{{ job.amount_paid|floatformat:0 }}" />
+                    </div>
+                </div>
+                <div class="form-field" style="margin-top:.75rem">
+                    <label class="form-label">Diagnosis / Work Done</label>
+                    <textarea name="diagnosis" class="form-textarea" rows="2"
+                        placeholder="What was diagnosed / repaired">{{ job.diagnosis }}</textarea>
+                </div>
+                <div class="form-field" style="margin-top:.75rem">
+                    <label class="form-label">Note <small style="color:var(--text-muted)">(added to status history)</small></label>
+                    <input type="text" name="note" class="form-input" placeholder="Optional note for this update" />
+                </div>
+                <div class="form-actions" style="margin-top:1rem">
+                    <button type="submit" class="btn btn-primary">💾 Save Update</button>
+                </div>
+            </form>
+            <p style="font-size:.8rem;color:var(--text-muted);margin:.75rem 0 0">
+                Tip: set status to <strong>Ready for Pickup</strong> when the repair is done &amp; OK,
+                and <strong>Delivered</strong> once the customer collects it.
+            </p>
+        </div>
+
+        <!-- Status history -->
+        {% if job.logs.all %}
+        <div class="info-card">
+            <h2
+                style="font-size:1rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:0 0 1rem">
+                Status History</h2>
+            <div class="timeline">
+                {% for log in job.logs.all %}
+                <div class="tl-item">
+                    <div class="tl-dot"></div>
+                    <div class="tl-time">{{ log.timestamp|date:"d M Y, g:i A" }}</div>
+                    <div class="tl-text" style="font-weight:600;text-transform:capitalize">{{ log.status|underscores }}</div>
+                    {% if log.note %}<div class="tl-note">{{ log.note }}</div>{% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Print script: show only token, hide everything else -->
+<script>
+    function printToken() {
+        var token = document.getElementById('repair-token');
+        var screen = document.querySelectorAll('.no-print');
+        token.style.display = 'block';
+        screen.forEach(function (el) { el.style.display = 'none'; });
+        window.print();
+        setTimeout(function () {
+            token.style.display = 'none';
+            screen.forEach(function (el) { el.style.display = ''; });
+        }, 500);
+    }
+</script>
+{% endblock %}

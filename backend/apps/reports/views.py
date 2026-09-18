@@ -2,8 +2,8 @@ import csv
 from io import StringIO
 from django.http import HttpResponse
 from django.utils import timezone
-from django.db.models import Sum, Count, Avg, F, Q, DecimalField
-from django.db.models.functions import TruncDate, TruncMonth
+from django.db.models import Sum, Count, F, Q, DecimalField
+from django.db.models.functions import TruncDate
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
@@ -36,7 +36,7 @@ def _csv_response(filename, headers, rows):
 
 @api_view(['GET'])
 def sales_summary(request):
-    from apps.sales.models import Invoice, InvoiceLine
+    from apps.sales.models import Invoice
     date_from, date_to = _date_params(request)
     bf = _branch_filter(request)
 
@@ -181,7 +181,6 @@ def imei_history(request):
     if not imei:
         return Response({'detail': 'imei parameter is required.'}, status=400)
 
-    from django.db.models import Q
     units = Unit.objects.filter(Q(imei1=imei) | Q(imei2=imei))
     if not units.exists():
         return Response({'detail': 'No device found with that IMEI.'}, status=404)

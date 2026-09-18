@@ -1,0 +1,4 @@
+# Django templates — Prettier wraps `{% ... %}` / `{{ ... }}` tags across
+# lines, which Django's parser rejects (tags cannot span newlines).
+# Never let a JS/HTML formatter touch server-rendered Django templates.
+backend/**/templates/**

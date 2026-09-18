@@ -1,0 +1,25 @@
+{% extends "web/base.html" %}{% load web_extras %}
+
+{% block content %}
+  {% if section %}
+    <div class="page-header">
+      <h1 class="page-title gradient-text">{{ section.label }}</h1>
+      <p class="page-subtitle">{{ section.description }}</p>
+    </div>
+
+    <div class="hub-grid">
+      {% for it in section.items %}
+        <a class="card hub-card" href="{% url it.url_name %}">
+          <span class="hub-icon">{{ it.icon|nav_icon }}</span>
+          <div>
+            <div class="hub-title">{{ it.label }}</div>
+            <div class="hub-desc">{{ it.desc }}</div>
+          </div>
+          <span class="hub-arrow">→</span>
+        </a>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty-state">Section not found.</div>
+  {% endif %}
+{% endblock %}

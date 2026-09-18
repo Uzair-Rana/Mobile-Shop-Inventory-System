@@ -4,8 +4,8 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django.utils import timezone
-from django.db.models import Sum, Count, Q
-from .models import Invoice, InvoiceLine, Payment
+from django.db.models import Sum
+from .models import Invoice, InvoiceLine
 from .serializers import InvoiceSerializer, InvoiceCreateSerializer, PaymentSerializer
 
 
