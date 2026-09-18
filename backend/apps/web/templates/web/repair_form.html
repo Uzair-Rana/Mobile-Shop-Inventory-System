@@ -38,16 +38,19 @@
             <label class="form-label">Fault / Issue Description *</label>
             <textarea name="fault_description" class="form-textarea" rows="3" required placeholder="Describe the problem…"></textarea>
         </div>
+        {% if accessory_options %}
+        <div class="form-field" style="margin-top:.75rem">
+            <label class="form-label">Received with device <small style="color:var(--text-muted)">— tick what the customer left with the phone</small></label>
+            <div class="check-chips">
+                {% for a in accessory_options %}
+                <label class="check-chip"><input type="checkbox" name="accessories" value="{{ a }}" /> {{ a }}</label>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
 
         <p class="section-label">Assignment &amp; Cost</p>
-        <div class="form-grid-3">
-            <div class="form-field">
-                <label class="form-label">Branch</label>
-                <select name="branch" class="form-select">
-                    <option value="">— None —</option>
-                    {% for b in branches %}<option value="{{ b.pk }}">{{ b.name }}</option>{% endfor %}
-                </select>
-            </div>
+        <div class="form-grid-2">
             <div class="form-field">
                 <label class="form-label">Technician</label>
                 <select name="technician" class="form-select">

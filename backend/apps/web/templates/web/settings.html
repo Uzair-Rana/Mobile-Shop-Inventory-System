@@ -1,8 +1,15 @@
 {% extends "web/base.html" %}
+{% load web_extras %}
 {% block content %}
-<div class="page-header">
-    <h1 class="page-title gradient-text">Settings</h1>
-    <p class="page-subtitle">Company profile, users &amp; branches</p>
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem">
+    <div>
+        <h1 class="page-title gradient-text">Settings</h1>
+        <p class="page-subtitle">Company profile, appearance, printing, users &amp; access</p>
+    </div>
+    <form method="post" action="{% url 'web:settings_lock' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-secondary" title="Lock Settings again">🔒 Lock</button>
+    </form>
 </div>
 
 <div class="detail-grid">
@@ -100,50 +107,124 @@
                 </tbody>
             </table>
         </div>
+
+        {% if can_edit %}
+        <!-- Dropdown options the owner can change (PTA status, condition, payment methods) -->
+        <div class="info-card" id="options">
+            <h2 style="font-size:1rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:0 0 .35rem">🗂 Dropdown Options</h2>
+            <p style="font-size:.8rem;color:var(--text-muted);margin:0 0 1rem">
+                Change the choices shown when adding devices and taking payments. Renaming a PTA or
+                condition option also updates the devices that use it; unticking <em>Show</em> hides an
+                option without touching old records.</p>
+            {% for g in option_groups %}
+            <p class="section-label" style="margin:.75rem 0 .4rem">{{ g.label }}</p>
+            <div class="option-rows">
+                {% for o in g.items %}
+                <form method="post" action="{% url 'web:option_save' %}" class="option-row">
+                    {% csrf_token %}
+                    <input type="hidden" name="group" value="{{ g.key }}" />
+                    <input type="hidden" name="id" value="{{ o.pk }}" />
+                    <span class="badge option-dot badge-{{ o.color }}" title="{{ o.get_color_display }}"></span>
+                    <input type="text" name="label" value="{{ o.label }}" class="form-input" maxlength="50" required />
+                    <select name="color" class="form-select" title="Badge colour">
+                        {% for val, lbl in option_colors %}<option value="{{ val }}" {% if o.color == val %}selected{% endif %}>{{ lbl }}</option>{% endfor %}
+                    </select>
+                    <input type="number" name="sort_order" value="{{ o.sort_order }}" min="0" class="form-input" title="Order" />
+                    <label class="option-show" title="Show in dropdowns">
+                        <input type="checkbox" name="is_active" value="1" {% if o.is_active %}checked{% endif %} /> Show</label>
+                    <button type="submit" name="action" value="save" class="btn btn-secondary">Save</button>
+                    <button type="submit" name="action" value="delete" class="btn btn-secondary option-del"
+                        formnovalidate onclick="return confirm('Delete this option? Existing records keep their value.')">✕</button>
+                </form>
+                {% endfor %}
+                <form method="post" action="{% url 'web:option_save' %}" class="option-row option-add">
+                    {% csrf_token %}
+                    <input type="hidden" name="group" value="{{ g.key }}" />
+                    <span class="option-dot"></span>
+                    <input type="text" name="label" placeholder="+ New {{ g.label|lower }} option" class="form-input" maxlength="50" required />
+                    <select name="color" class="form-select" title="Badge colour">
+                        {% for val, lbl in option_colors %}<option value="{{ val }}">{{ lbl }}</option>{% endfor %}
+                    </select>
+                    <input type="number" name="sort_order" min="0" class="form-input" placeholder="Order" title="Order" />
+                    <span></span>
+                    <button type="submit" name="action" value="add" class="btn btn-primary">Add</button>
+                    <span></span>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
     </div>
 
     <div style="display:flex;flex-direction:column;gap:1rem">
+        {% if can_edit %}
+        <!-- Appearance — colour theme for the whole app -->
         <div class="info-card">
-            <h2 style="font-size:1rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:0 0 1rem">Branches</h2>
-            {% for b in branches %}
-            <div class="info-field"><span class="info-label">{{ b.name }}</span><span class="info-value">{{ b.address|default:"—" }}</span></div>
-            {% empty %}
-            <p style="color:var(--text-muted)">No branches.</p>
-            {% endfor %}
+            <h2 style="font-size:1rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:0 0 1rem">🎨 Appearance</h2>
+            <form method="post" action="{% url 'web:theme_save' %}">
+                {% csrf_token %}
+                <div class="theme-grid">
+                    {% for val, label in themes %}
+                    <button type="submit" name="theme" value="{{ val }}"
+                        class="theme-option{% if company.theme == val %} selected{% endif %}" title="Use the {{ label }} theme">
+                        <span class="theme-swatch" data-theme="{{ val }}"></span>
+                        {{ label }}{% if company.theme == val %} ✓{% endif %}
+                    </button>
+                    {% endfor %}
+                </div>
+            </form>
+            <p style="font-size:.78rem;color:var(--text-muted);margin:.75rem 0 0">
+                Changes the colours of buttons, tabs and highlights for everyone using this shop.</p>
         </div>
 
-        {% if can_edit %}
+        <!-- Printing — paper size for bills -->
         <div class="info-card">
-            <h2 style="font-size:1rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:0 0 1rem">Backup &amp; Restore</h2>
-
-            {% if restored %}
-            <div style="background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;padding:.6rem .9rem;border-radius:8px;margin-bottom:1rem;font-size:.875rem">
-                ✅ Backup restored successfully. You may need to sign in again.
-            </div>
-            {% endif %}
-            {% if restore_error %}
-            <div class="form-error" style="margin-bottom:1rem">⚠ {{ restore_error }}</div>
-            {% endif %}
-
-            <p style="font-size:.875rem;color:var(--text-muted);margin:0 0 1rem">
-                Download a full backup (database + uploaded files). Plug in your USB drive, then
-                save the downloaded <code>.zip</code> to it to keep your records safe.
-            </p>
-            <a href="{% url 'web:backup_download' %}" class="btn btn-primary">💾 Download Backup (.zip)</a>
-
-            <hr style="border:none;border-top:1px solid var(--border);margin:1.25rem 0">
-
-            <p style="font-size:.875rem;color:#be123c;margin:0 0 .75rem">
-                <strong>Restore:</strong> uploading a backup <strong>replaces all current records</strong>. Use with care.
-            </p>
-            <form method="post" action="{% url 'web:restore_backup' %}" enctype="multipart/form-data"
-                onsubmit="return confirm('This will REPLACE all current records with the backup. This cannot be undone. Continue?')">
+            <h2 style="font-size:1rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:0 0 1rem">🖨 Printing</h2>
+            <form method="post" action="{% url 'web:printing_save' %}">
                 {% csrf_token %}
-                <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
-                    <input type="file" name="backup" accept=".zip" required class="form-input" style="padding:.3rem" />
-                    <button type="submit" class="btn"
-                        style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5">♻ Restore from Backup</button>
+                <div class="form-field" style="margin-bottom:.6rem">
+                    <label class="form-label">Bill paper</label>
+                    <select name="receipt_paper" class="form-select" style="width:100%">
+                        {% for val, lbl in papers %}<option value="{{ val }}" {% if company.receipt_paper == val %}selected{% endif %}>{{ lbl }}</option>{% endfor %}
+                    </select>
                 </div>
+                <label style="display:flex;align-items:center;gap:.4rem;font-size:.85rem;margin-bottom:.75rem">
+                    <input type="checkbox" name="receipt_show_logo" value="1" {% if company.receipt_show_logo %}checked{% endif %} />
+                    Print shop logo on bills</label>
+                <div class="form-field" style="margin-bottom:.75rem">
+                    <label class="form-label">Bill disclaimer <small style="color:var(--text-muted)">(printed on every bill; leave empty for none)</small></label>
+                    <textarea name="bill_disclaimer" class="form-textarea" rows="2" dir="auto"
+                        style="width:100%;font-family:'Segoe UI','Urdu Typesetting',Tahoma,sans-serif">{{ company.bill_disclaimer }}</textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">💾 Save Printing</button>
+            </form>
+            <p style="font-size:.75rem;color:var(--text-muted);margin:.75rem 0 0">
+                Every bill prints on a single page. Pick the paper loaded in your printer.</p>
+        </div>
+
+        <!-- Access key — protects Settings and Backup & Restore -->
+        <div class="info-card">
+            <h2 style="font-size:1rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:0 0 .5rem">🔑 Access Key</h2>
+            <p style="font-size:.8rem;color:var(--text-muted);margin:0 0 1rem">
+                Needed to open Settings.
+                {% if not company.settings_key %}Currently the installation key.{% endif %}</p>
+            <form method="post" action="{% url 'web:settings_key_save' %}" autocomplete="off">
+                {% csrf_token %}
+                <div class="form-field" style="margin-bottom:.6rem">
+                    <label class="form-label">Current key</label>
+                    <input type="password" name="current_key" class="form-input" required />
+                </div>
+                <div class="form-grid-2">
+                    <div class="form-field">
+                        <label class="form-label">New key</label>
+                        <input type="password" name="new_key" class="form-input" minlength="4" required />
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">Confirm</label>
+                        <input type="password" name="confirm_key" class="form-input" minlength="4" required />
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary" style="margin-top:.75rem">🔑 Change Key</button>
             </form>
         </div>
         {% endif %}

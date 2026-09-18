@@ -2,15 +2,16 @@
 {% block content %}
 
 <!-- Full-width POS layout: left = product grid, right = cart -->
-<div style="display:grid;grid-template-columns:1fr 360px;gap:1rem;height:calc(100vh - 64px - 3.5rem);align-items:start">
+<div id="pos-flash"></div>
+<div class="pos-layout">
 
     <!-- ══ LEFT: Product catalog, grouped into category sections ═════════════ -->
-    <div style="display:flex;flex-direction:column;gap:.875rem;min-height:0">
+    <div class="pos-left">
 
-        <!-- Search -->
-        <div style="display:flex;gap:.625rem;flex-wrap:wrap;align-items:center">
-            <form method="get" action="{% url 'web:pos' %}" style="display:flex;gap:.5rem;flex:1;min-width:200px">
-                <div class="search-box" style="flex:1">
+        <!-- Search + tools: the search form shrinks, the tools wrap below when narrow -->
+        <div class="pos-toolbar">
+            <form method="get" action="{% url 'web:pos' %}" class="pos-search">
+                <div class="search-box">
                     <span class="search-ico">🔍</span>
                     <input type="search" name="q" value="{{ q }}" placeholder="Search products…" autofocus />
                 </div>
@@ -19,7 +20,24 @@
                 <a href="{% url 'web:pos' %}" class="btn btn-secondary" style="padding:.5rem .875rem">✕ Clear</a>
                 {% endif %}
             </form>
+            <div class="pos-tools">
+                <button type="button" class="btn btn-secondary" style="padding:.5rem .875rem"
+                    onclick="var b=document.getElementById('bulk-imei');b.style.display=b.style.display==='none'?'block':'none'">
+                    📋 Add many IMEIs</button>
+                <div class="view-toggle" title="Show products as a list or as cards">
+                    <button type="button" data-view="list" onclick="posView('list')">☰ List</button>
+                    <button type="button" data-view="grid" onclick="posView('grid')">▦ Grid</button>
+                </div>
+            </div>
         </div>
+
+        <!-- Bulk device sale — paste / scan many IMEIs at once -->
+        <form id="bulk-imei" method="post" action="{% url 'web:pos_add_imeis' %}" class="js-live" style="display:none;margin:0">
+            {% csrf_token %}
+            <textarea name="imeis" class="form-textarea" rows="4"
+                placeholder="Scan or paste IMEIs — one per line (or comma-separated)"></textarea>
+            <button type="submit" class="btn btn-primary" style="margin-top:.4rem">➕ Add to cart</button>
+        </form>
 
         <!-- Quick-jump chips — one per section -->
         {% if categories %}
@@ -32,7 +50,7 @@
         {% endif %}
 
         <!-- Sections — Products (per category), IMEI Devices, Spare Parts -->
-        <div style="overflow-y:auto;flex:1" id="product-grid">
+        <div style="overflow-y:auto;flex:1" id="product-grid" class="view-list">
             {% if sections %}
             {% for section in sections %}
             <section id="cat-{{ section.title|slugify }}" style="margin-bottom:1.5rem">
@@ -40,17 +58,17 @@
                     <span>{{ section.title }}</span>
                     <span class="pos-section-count">{{ section.items|length }}</span>
                 </div>
-                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:.75rem">
+                <div class="pos-items">
                     {% for it in section.items %}
-                    <form method="post"
-                        action="{% if it.in_cart %}{% url 'web:pos_remove' %}{% else %}{% url 'web:pos_add' %}{% endif %}"
+                    <form method="post" class="js-live"
+                        action="{% if it.in_cart and it.type == 'unit' %}{% url 'web:pos_remove' %}{% else %}{% url 'web:pos_add' %}{% endif %}"
                         style="margin:0">
                         {% csrf_token %}
                         <input type="hidden" name="type" value="{{ it.type }}" />
                         <input type="hidden" name="id" value="{{ it.id }}" />
                         <button type="submit"
                             class="product-card {% if it.in_cart %}product-card-active{% endif %}">
-                            {% if it.in_cart %}<div class="product-selected-badge">✓ In Cart</div>{% endif %}
+                            {% if it.in_cart %}<div class="product-selected-badge">{% if it.type == 'unit' %}✓ In Cart{% else %}× {{ it.in_cart }} in cart{% endif %}</div>{% endif %}
                             <div class="pc-name">{{ it.name }}</div>
                             {% if it.imei %}
                             <div class="pc-sku">IMEI: {{ it.imei }}</div>
@@ -74,15 +92,14 @@
                 <p>No stock available{% if q %} matching "{{ q }}"{% endif %}.</p>
                 {% if q %}<a href="{% url 'web:pos' %}" style="color:var(--brand-500)">Clear search</a>{% endif %}
                 {% if not q %}<p style="font-size:.85rem">Add stock via
-                    <a href="{% url 'web:procurement_add' %}" style="color:var(--brand-500)">New Procurement</a>.</p>{% endif %}
+                    <a href="{% url 'web:procurement_add' %}" style="color:var(--brand-500)">New Purchase</a>.</p>{% endif %}
             </div>
             {% endif %}
         </div>
     </div>
 
 <!-- ══ RIGHT: Cart + Checkout ═════════════════════════════════════════════ -->
-<div
-    style="background:#fff;border:1px solid var(--border);border-radius:var(--radius);display:flex;flex-direction:column;height:calc(100vh - 64px - 3.5rem);box-shadow:var(--shadow)">
+<div id="pos-cart" class="pos-cart">
 
     <!-- Cart header -->
     <div
@@ -92,7 +109,7 @@
                 style="background:var(--brand-500);color:#fff;border-radius:99px;padding:.1rem .5rem;font-size:.75rem;margin-left:.35rem">{{ cart_count }}</span>{% endif %}
         </span>
         {% if cart %}
-        <form method="post" action="{% url 'web:pos_clear' %}" style="margin:0">
+        <form method="post" action="{% url 'web:pos_clear' %}" class="js-live" style="margin:0">
             {% csrf_token %}
             <button class="btn btn-secondary" style="padding:.25rem .6rem;font-size:.75rem">Clear All</button>
         </form>
@@ -100,7 +117,8 @@
     </div>
 
     <!-- Cart items (scrollable) -->
-    <div style="flex:1;overflow-y:auto;padding:.5rem 0">
+    <!-- Always keeps a good-sized scrollable list, however long the checkout form is -->
+    <div class="pos-cart-items">
         {% if cart %}
         {% for item in cart %}
         <div
@@ -110,12 +128,30 @@
                     style="font-weight:600;font-size:.875rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
                     {{ item.name }}</div>
                 {% if item.imei %}<div style="font-size:.68rem;color:var(--text-muted)">IMEI: {{ item.imei }}</div>{% endif %}
-                <div style="font-size:.75rem;color:var(--text-muted)">Rs. {{ item.price }} × {{ item.qty }}</div>
+                <!-- Qty + price are editable for bulk / wholesale sales; saved on change -->
+                <form method="post" action="{% url 'web:pos_update' %}" class="cart-edit js-live">
+                    {% csrf_token %}
+                    <input type="hidden" name="type" value="{{ item.type }}" />
+                    <input type="hidden" name="id" value="{{ item.id }}" />
+                    {% if item.type == 'unit' %}
+                    <span>1 ×</span>
+                    {% else %}
+                    <button type="submit" name="step" value="-1" class="qty-btn" title="One less">−</button>
+                    <input type="number" name="qty" value="{{ item.qty }}" min="1" step="1"
+                        title="Quantity" onchange="this.form.requestSubmit()" style="width:48px;text-align:center" />
+                    <button type="submit" name="step" value="1" class="qty-btn" title="One more">+</button>
+                    <span>×</span>
+                    {% endif %}
+                    <span>Rs.</span>
+                    <input type="number" name="price" value="{{ item.price|floatformat:0 }}" min="0" step="1"
+                        title="Unit price (edit for wholesale / dealer rate)" onchange="this.form.requestSubmit()"
+                        style="width:80px" />
+                </form>
             </div>
             <div style="font-weight:700;font-size:.9rem;white-space:nowrap">
                 Rs. {{ item.line_total|floatformat:0 }}
             </div>
-            <form method="post" action="{% url 'web:pos_remove' %}" style="margin:0">
+            <form method="post" action="{% url 'web:pos_remove' %}" class="js-live" style="margin:0">
                 {% csrf_token %}
                 <input type="hidden" name="type" value="{{ item.type }}" />
                 <input type="hidden" name="id" value="{{ item.id }}" />
@@ -128,14 +164,14 @@
         {% else %}
         <div style="text-align:center;padding:2.5rem 1rem;color:var(--text-muted)">
             <div style="font-size:2rem;margin-bottom:.5rem">🛒</div>
-            <p style="font-size:.875rem">Click any product to add it to the cart.</p>
+            <p style="font-size:.875rem">Click a product to add it; click again to add more. Edit qty &amp; price in the cart.</p>
         </div>
         {% endif %}
     </div>
 
     <!-- Total + Checkout -->
-    <div style="border-top:2px solid var(--border);padding:1rem;flex-shrink:0">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+    <div style="border-top:2px solid var(--border);padding:.75rem 1rem;flex-shrink:0">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem">
             <span style="font-weight:700;color:var(--text-muted)">Grand Total</span>
             <span style="font-weight:900;font-size:1.4rem;color:var(--brand-500)">Rs. {{ cart_total|floatformat:0 }}</span>
         </div>
@@ -143,49 +179,43 @@
         {% if cart %}
         <form method="post" action="{% url 'web:pos_checkout' %}">
             {% csrf_token %}
-            <div style="margin-bottom:.6rem">
-                <label style="font-size:.8rem;font-weight:700;display:block;margin-bottom:.3rem">Customer Name</label>
-                <input type="text" name="customer_name" class="form-input" placeholder="Walk-in"
-                    style="padding:.45rem .75rem;font-size:.9rem" />
-            </div>
-            <div style="margin-bottom:.6rem">
-                <label style="font-size:.8rem;font-weight:700;display:block;margin-bottom:.3rem">Customer Phone
-                    <small style="color:var(--text-muted)">— saved to customer record</small></label>
-                <input type="tel" name="customer_phone" class="form-input" placeholder="03001234567"
-                    style="padding:.45rem .75rem;font-size:.9rem"
-                    oninput="this.value=this.value.replace(/[^0-9]/g,'')" />
-            </div>
-            <div style="margin-bottom:.6rem">
-                <label style="font-size:.8rem;font-weight:700;display:block;margin-bottom:.3rem">Discount (Rs.)</label>
-                <input type="number" name="discount" id="pos-discount" min="0" step="1" value="0"
-                    class="form-input" style="padding:.45rem .75rem;font-size:.9rem"
-                    oninput="posUpdateTotal()" />
+            <div class="checkout-grid">
+                <div>
+                    <label class="checkout-label">Customer Name</label>
+                    <input type="text" name="customer_name" class="form-input checkout-input" placeholder="Walk-in" />
+                </div>
+                <div>
+                    <label class="checkout-label">Phone</label>
+                    <input type="tel" name="customer_phone" class="form-input checkout-input" placeholder="03001234567"
+                        title="Saved to the customer record"
+                        oninput="this.value=this.value.replace(/[^0-9]/g,'')" />
+                </div>
+                <div>
+                    <label class="checkout-label">Discount (Rs.)</label>
+                    <input type="number" name="discount" id="pos-discount" min="0" step="1" value="0"
+                        class="form-input checkout-input" oninput="posUpdateTotal()" />
+                </div>
+                <div>
+                    <label class="checkout-label">Received (Rs.)</label>
+                    <input type="number" name="amount_received" id="pos-received" min="0" step="1"
+                        class="form-input checkout-input" placeholder="Full payment" title="Blank = full payment"
+                        oninput="posUpdateTotal()" />
+                </div>
             </div>
             <div id="pos-payable-row"
-                style="display:none;justify-content:space-between;align-items:center;margin-bottom:.6rem;font-weight:800">
+                style="display:none;justify-content:space-between;align-items:center;margin-bottom:.4rem;font-weight:800">
                 <span style="color:var(--text-muted)">Payable</span>
                 <span id="pos-payable" style="color:var(--brand-500)">Rs. {{ cart_total|floatformat:0 }}</span>
             </div>
-            <div style="margin-bottom:.6rem">
-                <label style="font-size:.8rem;font-weight:700;display:block;margin-bottom:.3rem">Amount Received (Rs.)
-                    <small style="color:var(--text-muted)">— blank = full</small></label>
-                <input type="number" name="amount_received" id="pos-received" min="0" step="1"
-                    class="form-input" placeholder="Full payment" style="padding:.45rem .75rem;font-size:.9rem"
-                    oninput="posUpdateTotal()" />
-            </div>
             <div id="pos-balance-row"
-                style="display:none;justify-content:space-between;align-items:center;margin-bottom:.6rem;font-weight:800;color:#be123c">
+                style="display:none;justify-content:space-between;align-items:center;margin-bottom:.4rem;font-weight:800;color:#be123c">
                 <span>Balance (Udhaar)</span>
                 <span id="pos-balance">Rs. 0</span>
             </div>
-            <div style="margin-bottom:.875rem">
-                <label style="font-size:.8rem;font-weight:700;display:block;margin-bottom:.3rem">Payment Method</label>
-                <select name="payment_method" class="form-select" style="padding:.45rem .75rem;font-size:.9rem">
-                    <option value="cash">💵 Cash</option>
-                    <option value="card">💳 Card</option>
-                    <option value="easypaisa">📱 EasyPaisa</option>
-                    <option value="jazzcash">📱 JazzCash</option>
-                    <option value="bank_transfer">🏦 Bank Transfer</option>
+            <div style="margin-bottom:.6rem">
+                <label class="checkout-label">Payment Method</label>
+                <select name="payment_method" class="form-select checkout-input">
+                    {% for o in payment_options %}<option value="{{ o }}">{{ o }}</option>{% endfor %}
                 </select>
             </div>
             <button type="submit" class="btn btn-primary" id="pos-complete-btn"
@@ -194,30 +224,6 @@
                 ✅ Complete Sale · Rs. {{ cart_total|floatformat:0 }}
             </button>
         </form>
-        <script>
-            function posUpdateTotal() {
-                var btn = document.getElementById('pos-complete-btn');
-                var sub = parseFloat(btn.dataset.subtotal) || 0;
-                var disc = parseFloat(document.getElementById('pos-discount').value) || 0;
-                if (disc < 0) disc = 0;
-                if (disc > sub) disc = sub;
-                var payable = sub - disc;
-                btn.textContent = '✅ Complete Sale · Rs. ' + payable.toLocaleString();
-                var row = document.getElementById('pos-payable-row');
-                row.style.display = disc > 0 ? 'flex' : 'none';
-                document.getElementById('pos-payable').textContent = 'Rs. ' + payable.toLocaleString();
-
-                // Balance / udhaar when less than the payable is received.
-                var recEl = document.getElementById('pos-received');
-                var balRow = document.getElementById('pos-balance-row');
-                var rec = recEl.value === '' ? payable : (parseFloat(recEl.value) || 0);
-                if (rec < 0) rec = 0;
-                if (rec > payable) rec = payable;
-                var balance = payable - rec;
-                balRow.style.display = balance > 0 ? 'flex' : 'none';
-                document.getElementById('pos-balance').textContent = 'Rs. ' + balance.toLocaleString();
-            }
-        </script>
         {% else %}
         <button class="btn btn-primary" disabled style="width:100%;justify-content:center;opacity:.4">
             Add items to checkout
@@ -227,7 +233,200 @@
 </div>
 </div>
 
+<script>
+    // Checkout totals: discount → payable, amount received → udhaar balance.
+    function posUpdateTotal() {
+        var btn = document.getElementById('pos-complete-btn');
+        var sub = parseFloat(btn.dataset.subtotal) || 0;
+        var disc = parseFloat(document.getElementById('pos-discount').value) || 0;
+        if (disc < 0) disc = 0;
+        if (disc > sub) disc = sub;
+        var payable = sub - disc;
+        btn.textContent = '✅ Complete Sale · Rs. ' + payable.toLocaleString();
+        var row = document.getElementById('pos-payable-row');
+        row.style.display = disc > 0 ? 'flex' : 'none';
+        document.getElementById('pos-payable').textContent = 'Rs. ' + payable.toLocaleString();
+
+        // Balance / udhaar when less than the payable is received.
+        var recEl = document.getElementById('pos-received');
+        var balRow = document.getElementById('pos-balance-row');
+        var rec = recEl.value === '' ? payable : (parseFloat(recEl.value) || 0);
+        if (rec < 0) rec = 0;
+        if (rec > payable) rec = payable;
+        var balance = payable - rec;
+        balRow.style.display = balance > 0 ? 'flex' : 'none';
+        document.getElementById('pos-balance').textContent = 'Rs. ' + balance.toLocaleString();
+    }
+
+    // ── Live cart: add / remove / qty / price update in place (no page reload),
+    // so the product list keeps its scroll position and nothing jumps around.
+    function posFlash(doc) {
+        var box = document.getElementById('pos-flash');
+        box.innerHTML = '';
+        doc.querySelectorAll('.flash').forEach(function (f) { box.appendChild(f); });
+        clearTimeout(box._t);
+        box._t = setTimeout(function () { box.innerHTML = ''; }, 5000);
+    }
+    document.addEventListener('submit', function (e) {
+        var form = e.target;
+        if (!form.classList || !form.classList.contains('js-live')) return;
+        e.preventDefault();
+        var data = new FormData(form);
+        if (e.submitter && e.submitter.name) data.append(e.submitter.name, e.submitter.value);
+        var grid = document.getElementById('product-grid');
+        var items = document.querySelector('.pos-cart-items');
+        var gridTop = grid.scrollTop, itemsTop = items ? items.scrollTop : 0;
+        fetch(form.action, { method: 'POST', body: data, credentials: 'same-origin' })
+            .then(function (r) { return r.text(); })
+            .then(function (html) {
+                var doc = new DOMParser().parseFromString(html, 'text/html');
+                var newGrid = doc.getElementById('product-grid');
+                var newCart = doc.getElementById('pos-cart');
+                if (!newGrid || !newCart) { location.reload(); return; }
+                grid.innerHTML = newGrid.innerHTML;
+                document.getElementById('pos-cart').innerHTML = newCart.innerHTML;
+                grid.scrollTop = gridTop;
+                var newItems = document.querySelector('.pos-cart-items');
+                if (newItems) newItems.scrollTop = itemsTop;
+                if (form.id === 'bulk-imei') form.reset();
+                posFlash(doc);
+            })
+            .catch(function () { form.submit(); });   // fall back to a normal post
+    });
+
+    // Grid / List view for the product catalogue; the choice is remembered.
+    function posView(v) {
+        var grid = document.getElementById('product-grid');
+        grid.classList.toggle('view-list', v === 'list');
+        document.querySelectorAll('.view-toggle button').forEach(function (b) {
+            b.classList.toggle('active', b.dataset.view === v);
+        });
+        try { localStorage.setItem('posView', v); } catch (e) {}
+    }
+    (function () {
+        var v = 'list';
+        try { v = localStorage.getItem('posView') || 'list'; } catch (e) {}
+        posView(v);
+    })();
+</script>
+
 <style>
+    /* ── Layout: catalogue (shrinks) + cart (fixed width) ─────────────────────── */
+    .pos-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 380px;
+        gap: 1rem;
+        height: calc(100vh - 64px - 3.5rem);
+        align-items: start;
+    }
+
+    .pos-left {
+        display: flex;
+        flex-direction: column;
+        gap: .875rem;
+        min-height: 0;
+        min-width: 0;
+        height: 100%;
+    }
+
+    .pos-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .5rem .625rem;
+        align-items: center;
+    }
+
+    /* Search box + Search button always stay together and shrink first. */
+    .pos-search {
+        display: flex;
+        gap: .5rem;
+        flex: 1 1 260px;
+        min-width: 0;
+        margin: 0;
+    }
+
+    .pos-search .search-box {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .pos-search .search-box input {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .pos-tools {
+        display: flex;
+        gap: .5rem;
+        flex: 0 0 auto;
+        align-items: center;
+    }
+
+    .pos-cart {
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 64px - 3.5rem);
+        box-shadow: var(--shadow);
+        min-width: 0;
+    }
+
+    .pos-cart-items {
+        flex: 1 1 auto;
+        min-height: 200px;
+        overflow-y: auto;
+        padding: .5rem 0;
+    }
+
+    #pos-flash:empty {
+        display: none;
+    }
+
+    /* Rows / cards may shrink; the catalogue never scrolls sideways. */
+    #product-grid { overflow-x: hidden; }
+    .pos-items > form { min-width: 0; }
+    .product-card { min-width: 0; }
+
+    @media (max-width: 1300px) {
+        .pos-layout { grid-template-columns: minmax(0, 1fr) 340px; }
+        #product-grid.view-list .pc-brand { display: none; }
+        #product-grid.view-list .pc-sku { width: 80px; }
+    }
+
+    /* Narrow: each list row becomes two lines — name on top, stock below,
+       price on the right — so names are never cut down to a few letters. */
+    @media (max-width: 1100px) {
+        #product-grid.view-list .pc-sku, #product-grid.view-list .pc-brand { display: none; }
+        #product-grid.view-list .product-card,
+        #product-grid.view-list .product-card-active {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr) auto;
+            grid-template-areas: "badge name price" "badge stock price";
+            column-gap: .6rem;
+            row-gap: 0;
+        }
+        #product-grid.view-list .product-selected-badge { grid-area: badge; align-self: center; }
+        #product-grid.view-list .pc-name { grid-area: name; white-space: normal; font-size: .84rem; }
+        #product-grid.view-list .pc-stock { grid-area: stock; width: auto; text-align: left; }
+        #product-grid.view-list .pc-price { grid-area: price; width: auto; align-self: center; }
+    }
+
+    /* Small screens: cart moves below the catalogue. */
+    @media (max-width: 900px) {
+        .pos-layout { grid-template-columns: minmax(0, 1fr); height: auto; }
+        .pos-left { height: auto; }
+        #product-grid { max-height: 60vh; }
+        .pos-cart { height: auto; }
+    }
+
+    /* Grid cards reserve room for the "in cart" badge, so selecting a product
+       never changes card heights or shifts the grid. */
+    #product-grid:not(.view-list) .product-card {
+        padding-top: 1.6rem;
+    }
+
     /* ── Section header ───────────────────────────────────────────────────────── */
     .pos-section-title {
         display: flex;
@@ -256,6 +455,66 @@
     }
 
     /* ── Product card ─────────────────────────────────────────────────────────── */
+    /* ── Grid (cards) vs List (compact rows) ─────────────────────────────────── */
+    .pos-items {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+        gap: .75rem;
+    }
+
+    .view-list .pos-items {
+        grid-template-columns: 1fr;
+        gap: .35rem;
+    }
+
+    .view-list .product-card,
+    .view-list .product-card-active {
+        flex-direction: row;
+        align-items: center;
+        gap: .75rem;
+        padding: .5rem .75rem !important;
+    }
+
+    .view-list .product-card:hover:not(:disabled) {
+        transform: none;
+    }
+
+    .view-list .pc-name {
+        flex: 1;
+        min-width: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .view-list .pc-sku,
+    .view-list .pc-brand {
+        width: 110px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .view-list .pc-stock {
+        order: 1;
+        width: 64px;
+        text-align: right;
+    }
+
+    .view-list .pc-price {
+        order: 2;
+        width: 90px;
+        text-align: right;
+        margin-top: 0;
+        font-size: .9rem;
+    }
+
+    .view-list .product-selected-badge {
+        position: static;
+        order: -1;
+        white-space: nowrap;
+    }
+
     .product-card {
         width: 100%;
         padding: .875rem .75rem;
@@ -275,14 +534,14 @@
 
     .product-card:hover:not(:disabled) {
         border-color: var(--brand-500);
-        box-shadow: 0 4px 16px rgba(225, 29, 72, .18);
+        box-shadow: 0 4px 16px rgba(var(--brand-rgb), .18);
         transform: translateY(-2px);
     }
 
     .product-card-active {
         border-color: var(--brand-500) !important;
-        background: #fff1f2 !important;
-        box-shadow: 0 0 0 2px rgba(225, 29, 72, .25), var(--shadow) !important;
+        background: var(--brand-50) !important;
+        box-shadow: 0 0 0 2px rgba(var(--brand-rgb), .25), var(--shadow) !important;
     }
 
     .product-card:disabled {
@@ -337,6 +596,64 @@
         font-weight: 800;
         color: var(--brand-500);
         margin-top: .25rem;
+    }
+
+    .cart-edit {
+        display: flex;
+        align-items: center;
+        gap: .3rem;
+        margin: .25rem 0 0;
+        font-size: .75rem;
+        color: var(--text-muted);
+    }
+
+    .cart-edit input {
+        padding: .15rem .35rem;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        font-size: .8rem;
+    }
+
+    .checkout-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: .5rem;
+        margin-bottom: .5rem;
+    }
+
+    .checkout-grid > div {
+        min-width: 0;
+    }
+
+    .checkout-label {
+        font-size: .75rem;
+        font-weight: 700;
+        display: block;
+        margin-bottom: .2rem;
+    }
+
+    .checkout-input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: .4rem .6rem !important;
+        font-size: .875rem !important;
+    }
+
+    .qty-btn {
+        width: 22px;
+        height: 22px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: #fff;
+        cursor: pointer;
+        font-weight: 800;
+        line-height: 1;
+        padding: 0;
+    }
+
+    .qty-btn:hover {
+        border-color: var(--brand-500);
+        color: var(--brand-500);
     }
 
     .pc-stock {

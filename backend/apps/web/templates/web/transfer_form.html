@@ -1,47 +1,100 @@
 {% extends "web/base.html" %}
 {% block content %}
 <div class="page-header">
-    <h1 class="page-title gradient-text">New Transfer</h1>
-    <p class="page-subtitle">Record a stock transfer between branches</p>
+    <h1 class="page-title gradient-text">Send Goods Out</h1>
+    <p class="page-subtitle">Who it goes to, where, and which items — stock is deducted when you save</p>
 </div>
 
 <div class="form-card">
-    {% if error %}<div class="form-error">⚠ {{ error }}</div>{% endif %}
-    <form method="post" action="{% url 'web:transfer_add' %}">
+    {% if error %}<div class="form-error" style="margin-bottom:1rem">⚠ {{ error }}</div>{% endif %}
+    <form method="post">
         {% csrf_token %}
-        <div class="form-grid-2">
-            <div class="form-field">
-                <label class="form-label">From Branch *</label>
-                <select name="from_branch" class="form-select" required>
-                    <option value="">— Select —</option>
-                    {% for b in branches %}<option value="{{ b.pk }}">{{ b.name }}</option>{% endfor %}
-                </select>
+        <p class="section-label">Sent to</p>
+        <div class="manage-grid">
+            <div class="form-field" style="grid-column:span 2">
+                <label class="form-label">Person / Shop name *</label>
+                <input type="text" name="recipient_name" class="form-input" required maxlength="150"
+                    value="{{ post.recipient_name|default:'' }}" placeholder="e.g. Ali Mobiles" />
             </div>
-            <div class="form-field">
-                <label class="form-label">To Branch *</label>
-                <select name="to_branch" class="form-select" required>
-                    <option value="">— Select —</option>
-                    {% for b in branches %}<option value="{{ b.pk }}">{{ b.name }}</option>{% endfor %}
-                </select>
-            </div>
-            <div class="form-field">
-                <label class="form-label">Status</label>
-                <select name="status" class="form-select">
-                    {% for val, label in statuses %}<option value="{{ val }}">{{ label }}</option>{% endfor %}
-                </select>
+            <div class="form-field" style="grid-column:span 2">
+                <label class="form-label">Phone</label>
+                <input type="tel" name="recipient_phone" class="form-input" maxlength="30"
+                    value="{{ post.recipient_phone|default:'' }}" placeholder="03001234567" />
             </div>
         </div>
         <div class="form-field" style="margin-top:.75rem">
-            <label class="form-label">Notes</label>
-            <textarea name="notes" class="form-textarea" rows="2" placeholder="Optional"></textarea>
+            <label class="form-label">Destination / where *</label>
+            <input type="text" name="destination" class="form-input" required maxlength="255"
+                value="{{ post.destination|default:'' }}" placeholder="e.g. Hall Road, Lahore — or courier / cargo name" />
         </div>
-        {% if not branches %}
-        <p style="color:#be123c;font-size:.85rem;margin-top:.75rem">No branches exist yet — add branches in Settings first.</p>
-        {% endif %}
+
+        <p class="section-label" style="margin-top:1.25rem">Items being sent</p>
+        <input type="search" id="item-search" class="form-input" style="margin-bottom:.5rem;width:100%;box-sizing:border-box"
+            placeholder="🔍 Filter the item lists by name, SKU or IMEI…" oninput="filterItems(this.value)" autocomplete="off" />
+        <div id="item-rows"></div>
+        <button type="button" class="btn btn-secondary" onclick="addItemRow()" style="margin-top:.5rem">+ Add another item</button>
+
+        <div class="form-field" style="margin-top:1rem">
+            <label class="form-label">Notes</label>
+            <textarea name="notes" class="form-textarea" rows="2" placeholder="Optional — reason, courier slip no., etc.">{{ post.notes|default:'' }}</textarea>
+        </div>
         <div class="form-actions" style="margin-top:1rem">
-            <button type="submit" class="btn btn-primary">💾 Save Transfer</button>
+            <button type="submit" class="btn btn-primary">📦 Save &amp; Deduct Stock</button>
             <a href="{% url 'web:transfers' %}" class="btn btn-secondary">Cancel</a>
         </div>
     </form>
 </div>
+
+<!-- One item row: stock picker + quantity -->
+<template id="item-row-tpl">
+    <div class="send-row">
+        <select name="item" class="form-select" required onchange="rowPicked(this)">
+            <option value="">— Select item from stock —</option>
+            {% for group, items in choices %}{% if items %}
+            <optgroup label="{{ group }}">
+                {% for val, label, stock in items %}
+                <option value="{{ val }}" data-stock="{{ stock }}">{{ label }} — {{ stock }} in stock</option>
+                {% endfor %}
+            </optgroup>
+            {% endif %}{% endfor %}
+        </select>
+        <input type="number" name="qty" class="form-input" min="1" value="1" required title="Quantity" />
+        <button type="button" class="btn btn-secondary" onclick="this.parentNode.remove()" title="Remove">✕</button>
+    </div>
+</template>
+
+<style>
+    .send-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 90px auto;
+        gap: .5rem;
+        margin-bottom: .45rem;
+    }
+    .send-row .form-select, .send-row .form-input { width: 100%; box-sizing: border-box; }
+</style>
+<script>
+    function addItemRow() {
+        var tpl = document.getElementById('item-row-tpl').content.cloneNode(true);
+        document.getElementById('item-rows').appendChild(tpl);
+        filterItems(document.getElementById('item-search').value);
+    }
+    // Phones are single units; others are limited to what is in stock.
+    function rowPicked(sel) {
+        var opt = sel.options[sel.selectedIndex];
+        var qty = sel.parentNode.querySelector('input[name=qty]');
+        var stock = parseInt(opt && opt.dataset.stock || '1', 10);
+        qty.max = stock;
+        if (sel.value.indexOf('unit:') === 0) { qty.value = 1; qty.readOnly = true; }
+        else { qty.readOnly = false; if (+qty.value > stock) qty.value = stock; }
+    }
+    function filterItems(q) {
+        var words = q.toLowerCase().split(/\s+/).filter(Boolean);
+        document.querySelectorAll('#item-rows select[name=item] option').forEach(function (o) {
+            if (!o.value || o.selected) return;
+            var t = o.text.toLowerCase();
+            o.hidden = !words.every(function (w) { return t.indexOf(w) !== -1; });
+        });
+    }
+    addItemRow();
+</script>
 {% endblock %}

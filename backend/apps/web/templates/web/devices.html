@@ -1,4 +1,5 @@
 {% extends "web/base.html" %}
+{% load web_extras %}
 {% block content %}
 <div class="page-header">
     <h1 class="page-title gradient-text">IMEI Devices</h1>
@@ -19,18 +20,23 @@
         </select>
         <button type="submit" class="btn btn-secondary">Filter</button>
     </form>
-    <a href="{% url 'web:procurement_add' %}" class="btn btn-primary">+ Add via Procurement</a>
+    <button type="button" onclick="shareStockSheet('devices', this, 'svg')" class="btn"
+        style="background:#25D366;color:#fff;border:none" title="Send the whole list as a price-list image (SVG)">📲 Share on WhatsApp</button>
+    <button type="button" onclick="downloadStockExcel('devices')" class="btn btn-secondary" title="Download this list as an Excel sheet">⬇ Excel</button>
+    <a href="{% url 'web:procurement_add' %}?category=imei" class="btn btn-primary">+ Add Device</a>
+    {% include "web/_view_toggle.html" with key="devices" %}
 </div>
 
 <div class="info-card" style="margin-bottom:1rem;background:#fff7ed;border-left:3px solid #f97316;padding:.75rem 1rem">
     <p style="margin:0;font-size:.875rem;color:#9a3412">
-        <strong>Devices are added through Procurement only.</strong>
-        Go to <a href="{% url 'web:procurement_add' %}" style="color:#c2410c;font-weight:700">New Procurement</a>
-        and select category <em>IMEI Devices</em>. Enter one IMEI per line — each becomes a separate stock unit.
+        <strong>Devices are added through Purchases.</strong>
+        Go to <a href="{% url 'web:procurement_add' %}" style="color:#c2410c;font-weight:700">New Purchase</a>
+        and select category <em>IMEI Devices</em>. Enter one IMEI per line — each becomes a separate stock unit — and choose <strong>PTA / Non-PTA</strong> and condition on the same line.
     </p>
 </div>
 
-<div class="table-card">
+<div class="view-switch" data-view-key="devices" data-view="list">
+<div class="table-card" data-pane="list">
     <table class="table">
         <thead>
             <tr>
@@ -41,7 +47,6 @@
                 <th>State</th>
                 <th style="text-align:right">Cost</th>
                 <th style="text-align:right">Sell Price</th>
-                <th>Branch</th>
                 <th></th>
             </tr>
         </thead>
@@ -52,12 +57,7 @@
                 <td><strong>{{ u.brand }}</strong> {{ u.model }}</td>
                 <td>{{ u.condition }}</td>
                 <td>
-                    <span class="badge
-                        {% if u.pta_status == 'PTA Approved' %}badge-green
-                        {% elif u.pta_status == 'PTA Blocked' %}badge-red
-                        {% else %}badge-yellow{% endif %}">
-                        {{ u.pta_status }}
-                    </span>
+                    <span class="badge {{ u.pta_status|option_badge:option_badges.pta_status }}">{{ u.pta_status }}</span>
                 </td>
                 <td>
                     <span class="badge
@@ -71,19 +71,45 @@
                 </td>
                 <td style="text-align:right">Rs. {{ u.cost_price|floatformat:0 }}</td>
                 <td style="text-align:right">Rs. {{ u.sell_price|floatformat:0 }}</td>
-                <td>{{ u.branch.name|default:"—" }}</td>
                 <td><a href="{% url 'web:device_detail' u.pk %}" class="btn btn-secondary"
                         style="padding:.3rem .7rem;font-size:.8rem">View →</a></td>
             </tr>
             {% empty %}
             <tr>
-                <td colspan="9" style="text-align:center;padding:3rem;color:var(--text-muted)">
+                <td colspan="8" style="text-align:center;padding:3rem;color:var(--text-muted)">
                     No devices found — add them via
-                    <a href="{% url 'web:procurement_add' %}" style="color:var(--brand)">Procurement</a>.
+                    <a href="{% url 'web:procurement_add' %}" style="color:var(--brand)">Purchases</a>.
                 </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
+</div>
+
+<div class="stock-grid" data-pane="grid">
+    {% for u in units %}
+    <div class="stock-card">
+        <a href="{% url 'web:device_detail' u.pk %}" class="sc-name">{{ u.brand }} {{ u.model }}</a>
+        <div class="sc-meta"><code>{{ u.imei1 }}</code></div>
+        <div class="sc-meta" style="display:flex;gap:.3rem;flex-wrap:wrap">
+            <span class="badge {{ u.condition|option_badge:option_badges.device_condition }}">{{ u.condition }}</span>
+            <span class="badge {{ u.pta_status|option_badge:option_badges.pta_status }}">{{ u.pta_status }}</span>
+        </div>
+        <div class="sc-price">Rs. {{ u.sell_price|floatformat:0 }}</div>
+        <div class="sc-meta">Cost Rs. {{ u.cost_price|floatformat:0 }}</div>
+        <div class="sc-foot">
+            <span class="badge
+                {% if u.lifecycle_state == 'in_stock' %}badge-green
+                {% elif u.lifecycle_state == 'sold' %}badge-gray
+                {% elif u.lifecycle_state == 'defective' %}badge-red
+                {% elif u.lifecycle_state == 'in_repair' %}badge-orange
+                {% else %}badge-blue{% endif %}">{{ u.get_lifecycle_state_display }}</span>
+            <a href="{% url 'web:device_detail' u.pk %}" class="btn btn-secondary" style="padding:.25rem .6rem;font-size:.75rem">View →</a>
+        </div>
+    </div>
+    {% empty %}
+    <div class="info-card sc-empty" style="text-align:center;color:var(--text-muted)">No devices found.</div>
+    {% endfor %}
+</div>
 </div>
 {% endblock %}

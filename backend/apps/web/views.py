@@ -5,6 +5,8 @@ from django.db.models import Sum, Q, F, Count
 from django.views.decorators.http import require_POST
 from django.utils import timezone
 
+from apps.inventory.search import word_search, PRODUCT_FIELDS, UNIT_FIELDS, SPARE_FIELDS
+
 from .nav import SECTIONS, TABS
 
 
@@ -56,6 +58,25 @@ def _ctx(active, **extra):
 
 # ── Dashboard ─────────────────────────────────────────────────────────────────
 
+PERIODS = [('today', 'Today'), ('week', 'Weekly'), ('month', 'Monthly'), ('year', 'Yearly')]
+
+
+def _period(request):
+    """(key, start date, label, choices) for the ?period= selector."""
+    from datetime import timedelta
+    today = timezone.localdate()
+    period = request.GET.get('period', 'today')
+    if period == 'week':
+        start, label = today - timedelta(days=6), 'This Week'
+    elif period == 'month':
+        start, label = today.replace(day=1), 'This Month'
+    elif period == 'year':
+        start, label = today.replace(month=1, day=1), 'This Year'
+    else:
+        period, start, label = 'today', today, 'Today'
+    return period, start, label, PERIODS
+
+
 @login_required(login_url='web:login')
 def dashboard(request):
     from apps.sales.models import Invoice
@@ -63,24 +84,12 @@ def dashboard(request):
     from apps.inventory.models import Product, Unit
     from apps.installments.models import InstallmentPlan
 
-    from datetime import timedelta
     from django.db.models import DecimalField, ExpressionWrapper
     from apps.cash.models import Expense
-    from apps.transfers.models import Transfer
+    from .profit import profit_summary
 
     today = timezone.now().date()
-
-    # ── Time period the admin is viewing ──────────────────────────────────────
-    period = request.GET.get('period', 'today')
-    if period == 'week':
-        start, period_label = today - timedelta(days=6), 'This Week'
-    elif period == 'month':
-        start, period_label = today.replace(day=1), 'This Month'
-    elif period == 'year':
-        start, period_label = today.replace(month=1, day=1), 'This Year'
-    else:
-        period, start, period_label = 'today', today, 'Today'
-    periods = [('today', 'Today'), ('week', 'Weekly'), ('month', 'Monthly'), ('year', 'Yearly')]
+    period, start, period_label, periods = _period(request)
 
     # ── Money flows within the selected period ────────────────────────────────
     # Sales = fully PAID invoices only. Udhaar / pending invoices are NOT sales.
@@ -106,18 +115,14 @@ def dashboard(request):
                              output_field=DecimalField())))['t'] or 0)
     udhaar = inv_receivable + repair_receivable
 
+    net_profit = profit_summary(start)['net_profit']
+
     # ── Current-state snapshots (independent of the period) ───────────────────
-    prod_profit = Product.objects.aggregate(t=Sum(ExpressionWrapper(
-        (F('sell_price') - F('cost_price')) * F('stock_qty'),
-        output_field=DecimalField())))['t'] or 0
-    unit_profit = Unit.objects.filter(lifecycle_state='in_stock').aggregate(t=Sum(ExpressionWrapper(
-        F('sell_price') - F('cost_price'), output_field=DecimalField())))['t'] or 0
-    stock_profit = prod_profit + unit_profit
 
     open_repairs  = RepairJob.objects.exclude(status__in=['delivered', 'cancelled']).count()
     devices_stock = Unit.objects.filter(lifecycle_state='in_stock').count()
     overdue_plans = InstallmentPlan.objects.filter(status='active', next_due_date__lt=today).count()
-    transfers_open = Transfer.objects.exclude(status__in=['received', 'cancelled']).count()
+    low_stock = Product.objects.filter(stock_qty__lte=F('reorder_level')).count()
 
     kpis = [
         {'label': f'Sales ({period_label})',   'value': f'Rs. {total_sales:,.0f}',    'color': 'rose'},
@@ -125,20 +130,21 @@ def dashboard(request):
         {'label': 'Repairs Income',           'value': f'Rs. {repair_income:,.0f}',   'color': 'blue'},
         {'label': 'Expenses',                 'value': f'Rs. {expenses_period:,.0f}', 'color': 'rose'},
         {'label': 'Net Cash (Finance)',        'value': f'Rs. {net_cash:,.0f}',        'color': 'green'},
-        {'label': 'Stock Profit',              'value': f'Rs. {stock_profit:,.0f}',    'color': 'violet'},
+        {'label': f'Net Profit ({period_label})', 'value': f'Rs. {net_profit:,.0f}', 'color': 'violet',
+         'url': 'web:profit', 'query': f'?period={period}'},
         {'label': 'Udhaar (Credit)',           'value': f'Rs. {udhaar:,.0f}',          'color': 'amber', 'url': 'web:udhaar'},
         {'label': f'Invoices ({period_label})','value': period_invoices.count(),       'color': 'blue'},
         {'label': 'Devices In Stock',          'value': devices_stock,                 'color': 'violet'},
         {'label': 'Open Repairs',              'value': open_repairs,                  'color': 'amber'},
-        {'label': 'Open Transfers',            'value': transfers_open,                'color': 'cyan'},
+        {'label': 'Low Stock Items',           'value': low_stock,                     'color': 'rose', 'url': 'web:products', 'query': '?low=1'},
         {'label': 'Overdue Plans',             'value': overdue_plans,                 'color': 'cyan'},
     ]
 
     # Quick links to the main sections (replaces the old dashboard tables).
     quick_links = [
         {'label': 'Point of Sale', 'icon': '🧾', 'url': 'web:pos'},
-        {'label': 'Procurement',   'icon': '🚚', 'url': 'web:procurement_add'},
-        {'label': 'Transfers',     'icon': '🔁', 'url': 'web:transfers'},
+        {'label': 'Purchases',     'icon': '🚚', 'url': 'web:procurement_add'},
+        {'label': 'Invoices',      'icon': '📄', 'url': 'web:invoices'},
         {'label': 'Finance',       'icon': '💵', 'url': 'web:expenses'},
         {'label': 'Stock',         'icon': '📦', 'url': 'web:products'},
         {'label': 'Repairs',       'icon': '🔧', 'url': 'web:repairs'},
@@ -172,16 +178,176 @@ def finance(request):     return hub(request, 'finance')
 
 # ── Products (full catalog CRUD over the Product model) ───────────────────────
 
+def stock_queryset(kind, params):
+    """The filtered stock list for a page — shared by the page itself and its
+    Excel export, so both always show the same items.
+    kind: products | accessories | devices | spare_parts"""
+    from apps.inventory.models import Product, Unit
+    q = params.get('q', '')
+    if kind in ('products', 'accessories'):
+        qs = Product.objects.order_by('name')
+        if kind == 'accessories':
+            # Accessories = every non-serialised item except those filed as "Product".
+            qs = qs.exclude(category__iexact='product')
+        qs = word_search(qs, q, PRODUCT_FIELDS)
+        if params.get('low'):
+            qs = qs.filter(stock_qty__lte=F('reorder_level'))
+        return qs
+    if kind == 'devices':
+        qs = word_search(Unit.objects.select_related('added_by').order_by('-created_at'), q, UNIT_FIELDS)
+        if params.get('state'):
+            qs = qs.filter(lifecycle_state=params['state'])
+        return qs
+    # spare parts — stock is derived from the ledger
+    qs = _spare_stock_qs().annotate(stock_level=F('stock')).order_by('category', 'name')
+    if params.get('category'):
+        qs = qs.filter(category=params['category'])
+    return word_search(qs, q, SPARE_FIELDS)
+
+
+@login_required(login_url='web:login')
+def stock_export(request, kind):
+    """Excel sheet of the current stock list (same search / filters as the
+    page) for sharing on WhatsApp. Cost prices are left out on purpose."""
+    import io
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from django.http import Http404, HttpResponse
+    from apps.settings_app.models import CompanySettings
+
+    kind = kind.replace('-', '_')   # /stock/spare-parts/… or spare_parts
+    titles = {'products': 'Product List', 'accessories': 'Accessories',
+              'devices': 'Mobile Phones', 'spare_parts': 'Spare Parts'}
+    if kind not in titles:
+        raise Http404
+    qs = stock_queryset(kind, request.GET)
+    if kind == 'devices' and not request.GET.get('state'):
+        qs = qs.filter(lifecycle_state='in_stock')   # share what can be sold
+
+    if kind == 'devices':
+        headers = ['Brand', 'Model', 'IMEI', 'Condition', 'PTA Status', 'Price (Rs.)']
+        rows = [[u.brand, u.model, u.imei1, u.condition, u.pta_status, float(u.sell_price)] for u in qs]
+    elif kind == 'spare_parts':
+        headers = ['Part', 'SKU', 'Category', 'Compatible With', 'Price (Rs.)', 'In Stock']
+        rows = [[p.name, p.sku, p.get_category_display(),
+                 ' · '.join(x for x in (p.brand_compat, p.model_compat) if x),
+                 float(p.sell_price), p.stock_level] for p in qs]
+    else:
+        headers = ['Item', 'SKU', 'Brand', 'Category', 'Price (Rs.)', 'In Stock']
+        rows = [[p.name, p.sku, p.brand, p.category, float(p.sell_price), p.stock_qty] for p in qs]
+
+    company = CompanySettings.objects.first()
+    shop = company.name if company else 'My Phone'
+    wb = Workbook()
+    ws = wb.active
+    ws.title = titles[kind][:31]
+    ws.append([shop])
+    ws.append([f"{titles[kind]} — {timezone.localtime().strftime('%d %b %Y')}"])
+    ws.append([])
+    ws.append(headers)
+    for r in rows:
+        ws.append(r)
+    ws['A1'].font = Font(bold=True, size=14)
+    ws['A2'].font = Font(italic=True, color='555555')
+    head_fill = PatternFill('solid', fgColor='E11D48')
+    for cell in ws[4]:
+        cell.font = Font(bold=True, color='FFFFFF')
+        cell.fill = head_fill
+        cell.alignment = Alignment(horizontal='center')
+    price_col = headers.index('Price (Rs.)') + 1
+    for (cell,) in ws.iter_rows(min_row=5, min_col=price_col, max_col=price_col):
+        cell.number_format = '#,##0'
+    for i, h in enumerate(headers, start=1):
+        width = max([len(str(h))] + [len(str(r[i - 1])) for r in rows[:500]]) + 2
+        ws.column_dimensions[ws.cell(row=4, column=i).column_letter].width = min(width, 45)
+    ws.freeze_panes = 'A5'
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    import re
+    safe_shop = re.sub(r'[^A-Za-z0-9 _-]+', '', shop).strip() or 'Shop'
+    name = f"{safe_shop} - {titles[kind]} {timezone.localtime().strftime('%Y-%m-%d')}.xlsx"
+    resp = HttpResponse(buf.getvalue(),
+                        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    resp['Content-Disposition'] = f'attachment; filename="{name}"'
+    return resp
+
+
+@login_required(login_url='web:login')
+def stock_export_svg(request, kind):
+    """The current stock list drawn as one SVG image (price-list style) — the
+    format sent on WhatsApp. Same search / filters as the page; no costs."""
+    from xml.sax.saxutils import escape
+    from django.http import Http404, HttpResponse
+    from apps.settings_app.models import CompanySettings
+
+    kind = kind.replace('-', '_')
+    titles = {'products': 'Product List', 'accessories': 'Accessories',
+              'devices': 'Mobile Phones', 'spare_parts': 'Spare Parts'}
+    if kind not in titles:
+        raise Http404
+    qs = stock_queryset(kind, request.GET)
+    if kind == 'devices':
+        if not request.GET.get('state'):
+            qs = qs.filter(lifecycle_state='in_stock')
+        rows = [(f'{u.brand} {u.model}', f'IMEI {u.imei1} · {u.condition} · {u.pta_status}', u.sell_price, '')
+                for u in qs]
+    elif kind == 'spare_parts':
+        rows = [(p.name, ' · '.join(x for x in (p.get_category_display(), p.brand_compat, p.model_compat) if x),
+                 p.sell_price, f'{p.stock_level} in stock') for p in qs]
+    else:
+        rows = [(p.name, ' · '.join(x for x in (p.brand, p.category) if x), p.sell_price,
+                 f'{p.stock_qty} in stock') for p in qs]
+
+    company = CompanySettings.objects.first()
+    shop = company.name if company else 'My Phone'
+    brand = {'blue': '#2563eb', 'emerald': '#059669', 'violet': '#7c3aed',
+             'orange': '#ea580c', 'teal': '#0d9488'}.get(getattr(company, 'theme', ''), '#e11d48')
+    W, top, rh = 820, 150, 54
+    H = top + max(1, len(rows)) * rh + 70
+
+    def clip(text, n):
+        text = str(text or '')
+        return escape(text if len(text) <= n else text[:n - 1] + '…')
+
+    out = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}" '
+           f'font-family="Segoe UI, Arial, sans-serif">',
+           f'<rect width="{W}" height="{H}" fill="#ffffff"/>',
+           f'<rect width="{W}" height="104" fill="{brand}"/>',
+           f'<text x="30" y="50" font-size="30" font-weight="800" fill="#fff">{clip(shop, 40)}</text>',
+           f'<text x="30" y="84" font-size="18" fill="#fff">{escape(titles[kind])} — '
+           f'{timezone.localtime().strftime("%d %b %Y")}</text>',
+           '<text x="30" y="134" font-size="14" font-weight="700" fill="#6b7280">ITEM</text>',
+           f'<text x="{W - 30}" y="134" font-size="14" font-weight="700" fill="#6b7280" text-anchor="end">PRICE</text>']
+    for i, (name, sub, price, stock) in enumerate(rows):
+        y = top + i * rh
+        if i % 2 == 0:
+            out.append(f'<rect x="0" y="{y}" width="{W}" height="{rh}" fill="#f9fafb"/>')
+        out.append(f'<text x="30" y="{y + 23}" font-size="18" font-weight="700" fill="#111827">{clip(name, 48)}</text>')
+        out.append(f'<text x="30" y="{y + 43}" font-size="13" fill="#6b7280">{clip(sub, 80)}</text>')
+        out.append(f'<text x="{W - 30}" y="{y + 25}" font-size="19" font-weight="800" fill="{brand}" '
+                   f'text-anchor="end">Rs. {price:,.0f}</text>')
+        if stock:
+            out.append(f'<text x="{W - 30}" y="{y + 44}" font-size="12" fill="#6b7280" text-anchor="end">{escape(stock)}</text>')
+    if not rows:
+        out.append(f'<text x="30" y="{top + 30}" font-size="16" fill="#6b7280">No items.</text>')
+    out.append(f'<text x="{W / 2}" y="{H - 25}" font-size="12" fill="#9ca3af" text-anchor="middle">'
+               f'{len(rows)} items · Prices subject to change · Developed by Devnest</text>')
+    out.append('</svg>')
+
+    import re
+    safe_shop = re.sub(r'[^A-Za-z0-9 _-]+', '', shop).strip() or 'Shop'
+    name = f"{safe_shop} - {titles[kind]} {timezone.localtime().strftime('%Y-%m-%d')}.svg"
+    resp = HttpResponse('\n'.join(out), content_type='image/svg+xml; charset=utf-8')
+    resp['Content-Disposition'] = f'attachment; filename="{name}"'
+    return resp
+
+
 @login_required(login_url='web:login')
 def products(request):
-    from apps.inventory.models import Product
-    qs = Product.objects.order_by('name')
+    qs = stock_queryset('products', request.GET)
     q   = request.GET.get('q', '')
     low = request.GET.get('low', '')
-    if q:
-        qs = qs.filter(Q(name__icontains=q) | Q(sku__icontains=q) | Q(brand__icontains=q) | Q(category__icontains=q))
-    if low:
-        qs = qs.filter(stock_qty__lte=F('reorder_level'))
     return render(request, 'web/products.html', _ctx('stock',
         title='Products', products=qs[:300], q=q, low=low, total=qs.count()))
 
@@ -236,6 +402,15 @@ def _pos_cart(request):
     return cart
 
 
+def _back_to_pos(request):
+    """Return to the POS page the action came from (keeps an active search)."""
+    from django.utils.http import url_has_allowed_host_and_scheme
+    ref = request.META.get('HTTP_REFERER', '')
+    if ref and '/pos/' in ref and url_has_allowed_host_and_scheme(ref, allowed_hosts={request.get_host()}):
+        return redirect(ref)
+    return redirect('web:pos')
+
+
 def _cart_key(i):
     return f"{i['type']}:{i['id']}"
 
@@ -262,26 +437,94 @@ def _spare_stock_qs():
                        Value(0, output_field=IntegerField())))
 
 
+class OutOfStock(Exception):
+    pass
+
+
+def _available(kind, pk):
+    """Current stock of a product / spare part / unit (unit: 1 if in stock)."""
+    from apps.inventory.models import Product, Unit
+    if kind == 'unit':
+        return 1 if Unit.objects.filter(pk=pk, lifecycle_state='in_stock').exists() else 0
+    if kind == 'spare':
+        return _spare_stock_qs().filter(pk=pk).values_list('stock', flat=True).first() or 0
+    return Product.objects.filter(pk=pk).values_list('stock_qty', flat=True).first() or 0
+
+
+def _cost_of(kind, pk):
+    """Current cost price of one unit / product / spare part (for profit)."""
+    from apps.inventory.models import Product, Unit
+    from apps.spare_parts.models import SparePart
+    model = {'unit': Unit, 'spare': SparePart}.get(kind, Product)
+    return model.objects.filter(pk=pk).values_list('cost_price', flat=True).first() or 0
+
+
+def _take_stock(kind, pk, qty, name, reference, user, reason='sale'):
+    """Deduct stock inside the caller's transaction; raises OutOfStock if short.
+    reason: 'sale', 'repair_use' or 'transfer_out'."""
+    from apps.inventory.models import Product, Unit, StockMovement
+    from apps.spare_parts.models import SparePartLedger
+    if kind == 'unit':
+        new_state = 'transferred' if reason == 'transfer_out' else 'sold'
+        if not Unit.objects.filter(pk=pk, lifecycle_state='in_stock').update(lifecycle_state=new_state):
+            raise OutOfStock(f'"{name}" is no longer in stock.')
+        return
+    if kind == 'spare':
+        have = _available('spare', pk)
+        if have < qty:
+            raise OutOfStock(f'Only {have} of "{name}" in stock (needed {qty}).')
+        SparePartLedger.objects.create(part_id=pk, entry_type=reason, qty=-qty,
+                                       reference=reference, actor=user)
+        return
+    product = Product.objects.select_for_update().filter(pk=pk).first()
+    if product is None or product.stock_qty < qty:
+        have = product.stock_qty if product else 0
+        raise OutOfStock(f'Only {have} of "{name}" in stock (needed {qty}).')
+    product.stock_qty -= qty
+    product.save(update_fields=['stock_qty', 'updated_at'])
+    StockMovement.objects.create(product=product, type=reason, qty_change=-qty,
+                                 note=reference, actor=user)
+
+
+def _return_stock(kind, pk, qty, reference, user, reason='return'):
+    """Put stock back (customer return, part removed from a repair, or a
+    cancelled transfer — reason 'transfer_in')."""
+    from apps.inventory.models import Product, Unit, StockMovement
+    from apps.spare_parts.models import SparePartLedger
+    if kind == 'unit':
+        was = 'transferred' if reason == 'transfer_in' else 'sold'
+        Unit.objects.filter(pk=pk, lifecycle_state=was).update(lifecycle_state='in_stock')
+    elif kind == 'spare':
+        entry = 'transfer_in' if reason == 'transfer_in' else 'return_in'
+        SparePartLedger.objects.create(part_id=pk, entry_type=entry, qty=qty,
+                                       reference=reference, actor=user)
+    else:
+        Product.objects.filter(pk=pk).update(stock_qty=F('stock_qty') + qty)
+        StockMovement.objects.create(product_id=pk, type=reason, qty_change=qty,
+                                     note=reference, actor=user)
+
+
 @login_required(login_url='web:login')
 def pos(request):
     from decimal import Decimal
     from apps.inventory.models import Product, Unit
+    from apps.settings_app.choices import options
     q = request.GET.get('q', '')
 
     cart = _pos_cart(request)
-    cart_keys = {_cart_key(i) for i in cart}
+    cart_qty = {_cart_key(i): i['qty'] for i in cart}
 
     def mk(t, pk, name, sku, price, stock, low=False, brand='', imei=''):
         return {'type': t, 'id': pk, 'name': name, 'sku': sku or '',
                 'price': price, 'stock': stock, 'low': low, 'brand': brand,
-                'imei': imei, 'in_cart': f'{t}:{pk}' in cart_keys}
+                'imei': imei, 'in_cart': cart_qty.get(f'{t}:{pk}', 0)}
 
     sections = []
 
     # 1) Products / accessories — one section per category.
     pq = Product.objects.filter(stock_qty__gt=0).order_by('category', 'name')
     if q:
-        pq = pq.filter(Q(name__icontains=q) | Q(sku__icontains=q) | Q(brand__icontains=q))
+        pq = word_search(pq, q, PRODUCT_FIELDS)
     by_cat = {}
     for p in pq[:400]:
         by_cat.setdefault(p.category or 'Uncategorized', []).append(
@@ -293,7 +536,7 @@ def pos(request):
     # 2) IMEI devices — each in-stock unit is individually sellable.
     uq = Unit.objects.filter(lifecycle_state='in_stock').order_by('brand', 'model')
     if q:
-        uq = uq.filter(Q(imei1__icontains=q) | Q(brand__icontains=q) | Q(model__icontains=q))
+        uq = word_search(uq, q, UNIT_FIELDS)
     units = [mk('unit', u.pk, f'{u.brand} {u.model}'.strip(), u.imei1, u.sell_price, 1,
                 brand=u.brand, imei=u.imei1) for u in uq[:400]]
     if units:
@@ -302,7 +545,7 @@ def pos(request):
     # 3) Spare parts — ledger-derived stock.
     sq = _spare_stock_qs().filter(stock__gt=0).order_by('name')
     if q:
-        sq = sq.filter(Q(name__icontains=q) | Q(sku__icontains=q) | Q(brand_compat__icontains=q))
+        sq = word_search(sq, q, SPARE_FIELDS)
     spares = [mk('spare', s.pk, s.name, s.sku, s.sell_price, s.stock,
                  low=(s.stock <= s.reorder_level), brand=s.brand_compat) for s in sq[:400]]
     if spares:
@@ -316,6 +559,7 @@ def pos(request):
         title='Point of Sale',
         q=q, categories=categories, sections=sections,
         cart=cart_view, cart_total=total, cart_count=count,
+        payment_options=options('payment_method') or ['Cash'],
     ))
 
 
@@ -332,7 +576,11 @@ def pos_add(request):
     for i in cart:
         if _cart_key(i) == key:
             if t != 'unit':          # a unit is unique — never stack qty
-                i['qty'] += 1
+                if i['qty'] < _available(t, pid):
+                    i['qty'] += 1
+                else:
+                    from django.contrib import messages
+                    messages.warning(request, f'No more "{i["name"]}" in stock.')
             break
     else:
         if t == 'unit':
@@ -350,7 +598,75 @@ def pos_add(request):
 
     request.session['pos_cart'] = cart
     request.session.modified = True
-    return redirect(request.META.get('HTTP_REFERER') or 'web:pos')
+    return _back_to_pos(request)
+
+
+@login_required(login_url='web:login')
+@require_POST
+def pos_update(request):
+    """Set a cart line's quantity and price (bulk / wholesale sales)."""
+    from decimal import Decimal, InvalidOperation
+    from django.contrib import messages
+    key = f"{request.POST.get('type')}:{request.POST.get('id')}"
+    cart = _pos_cart(request)
+    for i in cart:
+        if _cart_key(i) != key:
+            continue
+        if i['type'] != 'unit':
+            try:
+                qty = int(request.POST.get('qty') or i['qty'])
+            except ValueError:
+                qty = i['qty']
+            step = request.POST.get('step')
+            if step in ('1', '-1'):      # − / + buttons
+                qty = i['qty'] + int(step)
+            if qty < 1:                  # "−" on the last one removes the line
+                cart.remove(i)
+                break
+            have = _available(i['type'], i['id'])
+            if qty > have:
+                messages.warning(request, f'Only {have} of "{i["name"]}" in stock.')
+                qty = max(1, have)
+            i['qty'] = qty
+        try:
+            price = Decimal(str(request.POST.get('price')))
+            if price >= 0:
+                i['price'] = str(price)
+        except (InvalidOperation, ValueError):
+            pass
+        break
+    request.session['pos_cart'] = cart
+    request.session.modified = True
+    return _back_to_pos(request)
+
+
+@login_required(login_url='web:login')
+@require_POST
+def pos_add_imeis(request):
+    """Add many IMEI devices at once — paste or scan one IMEI per line."""
+    from django.contrib import messages
+    from apps.inventory.models import Unit
+    cart = _pos_cart(request)
+    in_cart = {_cart_key(i) for i in cart}
+    raw = request.POST.get('imeis', '')
+    imeis = list(dict.fromkeys(x.strip() for x in raw.replace(',', '\n').splitlines() if x.strip()))
+    added, missing = 0, []
+    for imei in imeis:
+        u = Unit.objects.filter(Q(imei1=imei) | Q(imei2=imei), lifecycle_state='in_stock').first()
+        if not u:
+            missing.append(imei)
+        elif f'unit:{u.pk}' not in in_cart:
+            cart.append({'type': 'unit', 'id': u.pk, 'name': f'{u.brand} {u.model}'.strip(),
+                         'sku': u.imei1, 'imei': u.imei1, 'price': str(u.sell_price), 'qty': 1})
+            in_cart.add(f'unit:{u.pk}')
+            added += 1
+    request.session['pos_cart'] = cart
+    request.session.modified = True
+    if added:
+        messages.success(request, f'Added {added} device(s) to the cart.')
+    if missing:
+        messages.error(request, 'Not in stock / not found: ' + ', '.join(missing))
+    return _back_to_pos(request)
 
 
 @login_required(login_url='web:login')
@@ -360,7 +676,7 @@ def pos_remove(request):
     cart = [i for i in _pos_cart(request) if _cart_key(i) != key]
     request.session['pos_cart'] = cart
     request.session.modified = True
-    return redirect('web:pos')
+    return _back_to_pos(request)
 
 
 @login_required(login_url='web:login')
@@ -368,7 +684,7 @@ def pos_remove(request):
 def pos_clear(request):
     request.session['pos_cart'] = []
     request.session.modified = True
-    return redirect('web:pos')
+    return _back_to_pos(request)
 
 
 @login_required(login_url='web:login')
@@ -377,8 +693,6 @@ def pos_checkout(request):
     from decimal import Decimal
     from django.db import transaction
     from apps.sales.models import Invoice, InvoiceLine
-    from apps.inventory.models import Product, Unit, StockMovement
-    from apps.spare_parts.models import SparePartLedger
 
     cart = _pos_cart(request)
     if not cart:
@@ -386,7 +700,7 @@ def pos_checkout(request):
 
     customer_name = request.POST.get('customer_name') or 'Walk-in'
     customer_phone = (request.POST.get('customer_phone') or '').strip()
-    method = request.POST.get('payment_method') or 'cash'
+    method = (request.POST.get('payment_method') or 'Cash').strip()[:50]
     subtotal, _ = _pos_totals(cart)
 
     # Customers are recorded automatically from the sale (no manual add).
@@ -424,49 +738,31 @@ def pos_checkout(request):
     received = max(Decimal('0'), min(received, grand))
     status = 'paid' if received >= grand else 'partially_paid'
 
-    with transaction.atomic():
-        inv = Invoice.objects.create(
-            customer=customer_obj, customer_name=customer_name, status=status,
-            subtotal=subtotal, discount_amount=discount,
-            grand_total=grand, amount_paid=received,
-            payment_method=method, created_by=request.user,
-        )
-        for i in cart:
-            price = Decimal(str(i['price']))
-            qty = i['qty']
-            t = i['type']
-
-            if t == 'unit':
+    line_types = {'unit': 'unit', 'spare': 'spare_part', 'product': 'accessory'}
+    try:
+        # All-or-nothing: if any line is short on stock, nothing is saved.
+        with transaction.atomic():
+            inv = Invoice.objects.create(
+                customer=customer_obj, customer_name=customer_name, status=status,
+                subtotal=subtotal, discount_amount=discount,
+                grand_total=grand, amount_paid=received,
+                payment_method=method, created_by=request.user,
+            )
+            for i in cart:
+                price = Decimal(str(i['price']))
+                qty = 1 if i['type'] == 'unit' else i['qty']
                 InvoiceLine.objects.create(
-                    invoice=inv, product_type='unit', product_id=i['id'],
+                    invoice=inv, product_type=line_types[i['type']], product_id=i['id'],
                     product_name=i['name'], sku=i.get('sku', ''), imei=i.get('imei', ''),
-                    qty=1, unit_price=price, line_total=price,
+                    qty=qty, unit_price=price, line_total=price * qty,
+                    cost_price=_cost_of(i['type'], i['id']),
                 )
-                Unit.objects.filter(pk=i['id'], lifecycle_state='in_stock').update(
-                    lifecycle_state='sold')
-
-            elif t == 'spare':
-                InvoiceLine.objects.create(
-                    invoice=inv, product_type='spare_part', product_id=i['id'],
-                    product_name=i['name'], sku=i.get('sku', ''), qty=qty,
-                    unit_price=price, line_total=price * qty,
-                )
-                SparePartLedger.objects.create(
-                    part_id=i['id'], entry_type='sale', qty=-qty,
-                    reference=inv.invoice_number, actor=request.user, note='POS sale',
-                )
-
-            else:  # product / accessory
-                InvoiceLine.objects.create(
-                    invoice=inv, product_type='accessory', product_id=i['id'],
-                    product_name=i['name'], sku=i.get('sku', ''), qty=qty,
-                    unit_price=price, line_total=price * qty,
-                )
-                Product.objects.filter(pk=i['id']).update(stock_qty=F('stock_qty') - qty)
-                StockMovement.objects.create(
-                    product_id=i['id'], type='sale', qty_change=-qty,
-                    note=f'Sale via {inv.invoice_number}', actor=request.user,
-                )
+                _take_stock(i['type'], i['id'], qty, i['name'],
+                            f'Sale via {inv.invoice_number}', request.user)
+    except OutOfStock as e:
+        from django.contrib import messages
+        messages.error(request, f'Sale not completed — {e}')
+        return redirect('web:pos')
 
     request.session['pos_cart'] = []
     request.session.modified = True
@@ -478,13 +774,9 @@ def pos_checkout(request):
 @login_required(login_url='web:login')
 def devices(request):
     from apps.inventory.models import Unit
-    qs = Unit.objects.select_related('branch', 'added_by').order_by('-created_at')
+    qs = stock_queryset('devices', request.GET)
     q  = request.GET.get('q', '')
     state = request.GET.get('state', '')
-    if q:
-        qs = qs.filter(Q(imei1__icontains=q) | Q(brand__icontains=q) | Q(model__icontains=q))
-    if state:
-        qs = qs.filter(lifecycle_state=state)
     states = Unit.LIFECYCLE
     return render(request, 'web/devices.html', _ctx('stock',
         title='IMEI Devices', units=qs[:100], q=q, state=state, states=states,
@@ -494,9 +786,34 @@ def devices(request):
 @login_required(login_url='web:login')
 def device_detail(request, pk):
     from apps.inventory.models import Unit
+    from apps.settings_app.choices import options
     unit = get_object_or_404(Unit, pk=pk)
     return render(request, 'web/device_detail.html', _ctx('stock',
-        title=f'{unit.brand} {unit.model}', unit=unit))
+        title=f'{unit.brand} {unit.model}', unit=unit,
+        pta_options=options('pta_status', include=unit.pta_status),
+        condition_options=options('device_condition', include=unit.condition)))
+
+
+@login_required(login_url='web:login')
+@require_POST
+def device_update(request, pk):
+    """Edit a device's PTA status, condition, price and extra identifiers."""
+    from decimal import Decimal, InvalidOperation
+    from django.contrib import messages
+    from apps.inventory.models import Unit
+    unit = get_object_or_404(Unit, pk=pk)
+    p = request.POST
+    unit.pta_status = (p.get('pta_status') or unit.pta_status).strip()[:50]
+    unit.condition = (p.get('condition') or unit.condition).strip()[:50]
+    unit.imei2 = (p.get('imei2') or '').strip() or None
+    unit.serial = (p.get('serial') or '').strip()
+    try:
+        unit.sell_price = max(Decimal('0'), Decimal(str(p.get('sell_price'))))
+    except (InvalidOperation, ValueError):
+        pass
+    unit.save()
+    messages.success(request, 'Device updated.')
+    return redirect('web:device_detail', pk=unit.pk)
 
 
 @login_required(login_url='web:login')
@@ -509,14 +826,9 @@ def device_add(request):
 
 @login_required(login_url='web:login')
 def accessories(request):
-    from apps.inventory.models import Product
-    qs = Product.objects.select_related('branch').order_by('name')
+    qs = stock_queryset('accessories', request.GET)
     q  = request.GET.get('q', '')
     low = request.GET.get('low', '')
-    if q:
-        qs = qs.filter(Q(name__icontains=q) | Q(sku__icontains=q))
-    if low:
-        qs = qs.filter(stock_qty__lte=F('reorder_level'))
     return render(request, 'web/accessories.html', _ctx('stock',
         title='Accessories', products=qs[:200], q=q, low=low, total=qs.count()))
 
@@ -532,7 +844,7 @@ def accessory_add(request):
 @login_required(login_url='web:login')
 def invoices(request):
     from apps.sales.models import Invoice
-    qs = Invoice.objects.select_related('customer', 'branch', 'created_by').order_by('-created_at')
+    qs = Invoice.objects.select_related('customer', 'created_by').order_by('-created_at')
     q      = request.GET.get('q', '')
     status = request.GET.get('status', '')
     if q:
@@ -581,7 +893,34 @@ def invoice_detail(request, pk):
         l.remaining = l.qty - (l.returned_qty or 0)   # units still returnable
     company, _ = CompanySettings.objects.get_or_create(id=1)
     return render(request, 'web/invoice_detail.html', _ctx('selling',
-        title=f'Invoice {inv.invoice_number}', inv=inv, lines=lines, company=company))
+        title=f'Invoice {inv.invoice_number}', inv=inv, lines=lines, company=company,
+        receipt=_invoice_receipt(inv, lines), token_copies=TOKEN_COPIES))
+
+
+# Tokens print twice on one slip: one for the customer, one kept by the shop.
+TOKEN_COPIES = ['CUSTOMER COPY', 'SHOP COPY']
+
+
+def _invoice_receipt(inv, lines):
+    """Data for the printed bill (web/_receipt.html)."""
+    meta = [('Invoice #', inv.invoice_number),
+            ('Date', timezone.localtime(inv.created_at).strftime('%d-%m-%Y %I:%M %p')),
+            ('Customer', inv.customer_name or 'Walk-in')]
+    if inv.customer and inv.customer.phone:
+        meta.append(('Phone', inv.customer.phone))
+    rows = [{'name': l.product_name,
+             'sub': f'IMEI {l.imei}' if l.imei else (l.sku or ''),
+             'qty': l.qty, 'rate': l.unit_price, 'amount': l.line_total} for l in lines]
+    totals = [{'label': 'Subtotal', 'value': inv.subtotal}]
+    if inv.discount_amount:
+        totals.append({'label': 'Discount', 'value': inv.discount_amount, 'minus': True})
+    if inv.tax_amount:
+        totals.append({'label': 'Tax', 'value': inv.tax_amount})
+    totals += [{'label': 'TOTAL', 'value': inv.grand_total, 'strong': True},
+               {'label': f'Paid ({inv.get_payment_method_display()})', 'value': inv.amount_paid}]
+    if inv.balance_due > 0:
+        totals.append({'label': 'Balance Due', 'value': inv.balance_due, 'alert': True})
+    return {'title': 'SALE INVOICE', 'meta': meta, 'rows': rows, 'totals': totals, 'note': inv.notes}
 
 
 @login_required(login_url='web:login')
@@ -615,8 +954,6 @@ def invoice_line_return(request, line_id):
     """Return some/all of one invoice line back into stock."""
     from django.db import transaction
     from apps.sales.models import InvoiceLine
-    from apps.inventory.models import Product, Unit, StockMovement
-    from apps.spare_parts.models import SparePartLedger
 
     line = get_object_or_404(InvoiceLine.objects.select_related('invoice'), pk=line_id)
     remaining = line.qty - (line.returned_qty or 0)
@@ -629,22 +966,9 @@ def invoice_line_return(request, line_id):
         return redirect('web:invoice_detail', pk=line.invoice_id)
 
     inv = line.invoice
+    kind = {'unit': 'unit', 'spare_part': 'spare'}.get(line.product_type, 'product')
     with transaction.atomic():
-        if line.product_type == 'unit':
-            # A serialized device — put the specific unit back in stock.
-            Unit.objects.filter(pk=line.product_id, lifecycle_state='sold').update(
-                lifecycle_state='in_stock')
-        elif line.product_type == 'spare_part':
-            SparePartLedger.objects.create(
-                part_id=line.product_id, entry_type='return_in', qty=qty,
-                reference=inv.invoice_number, actor=request.user,
-                note='Customer return')
-        else:  # product / accessory
-            Product.objects.filter(pk=line.product_id).update(
-                stock_qty=F('stock_qty') + qty)
-            StockMovement.objects.create(
-                product_id=line.product_id, type='return', qty_change=qty,
-                note=f'Return via {inv.invoice_number}', actor=request.user)
+        _return_stock(kind, line.product_id, qty, f'Return via {inv.invoice_number}', request.user)
 
         line.returned_qty = (line.returned_qty or 0) + qty
         line.save(update_fields=['returned_qty'])
@@ -695,7 +1019,7 @@ def repairs(request):
     from apps.repairs.models import RepairJob
     # Completed/terminal jobs live in History; everything else is Active.
     HISTORY = ['delivered', 'cancelled', 'unrepairable']
-    base = RepairJob.objects.select_related('customer', 'technician', 'branch')
+    base = RepairJob.objects.select_related('customer', 'technician')
     q   = request.GET.get('q', '')
     tab = request.GET.get('tab', 'active')
     if tab != 'history':
@@ -717,12 +1041,108 @@ def repairs(request):
 def repair_detail(request, pk):
     from apps.repairs.models import RepairJob
     from apps.users.models import User
+    from apps.inventory.models import Product
+    from apps.settings_app.models import CompanySettings
+    from apps.settings_app.choices import options
     job = get_object_or_404(RepairJob.objects.prefetch_related('logs', 'parts'), pk=pk)
     job.balance = (job.final_cost or 0) - (job.amount_paid or 0)
     technicians = User.objects.filter(is_active=True)
+    # Stock the technician can pick from: spare parts first, then accessories.
+    spares = _spare_stock_qs().filter(stock__gt=0, is_active=True).order_by('name')
+    products = Product.objects.filter(stock_qty__gt=0).order_by('name')
+    company, _ = CompanySettings.objects.get_or_create(id=1)
+    meta = [('Job #', job.job_number),
+            ('Date', timezone.localtime().strftime('%d-%m-%Y %I:%M %p')),
+            ('Customer', job.customer_name)]
+    if job.customer_phone:
+        meta.append(('Phone', job.customer_phone))
+    meta.append(('Device', job.device_model + (f' ({job.device_imei})' if job.device_imei else '')))
+    rows = [{'name': 'Repair / labour charges', 'sub': job.diagnosis, 'qty': 1,
+             'rate': job.labour_charge, 'amount': job.labour_charge}]
+    rows += [{'name': p.name, 'sub': p.sku, 'qty': p.qty, 'rate': p.unit_price,
+              'amount': p.line_total} for p in job.parts.all()]
+    totals = [{'label': 'TOTAL', 'value': job.final_cost, 'strong': True},
+              {'label': 'Paid', 'value': job.amount_paid}]
+    if job.balance > 0:
+        totals.append({'label': 'Balance Due', 'value': job.balance, 'alert': True})
+    received = [a.strip() for a in (job.accessories_received or '').split(',') if a.strip()]
+    if received:
+        meta.append(('Received with', ', '.join(received)))
+    receipt = {'title': 'REPAIR BILL', 'meta': meta, 'rows': rows, 'totals': totals}
     return render(request, 'web/repair_detail.html', _ctx('workshop',
-        title=f'Job {job.job_number}', job=job,
+        title=f'Job {job.job_number}', job=job, company=company, receipt=receipt,
+        token_copies=TOKEN_COPIES, received=received,
+        parts_cost=sum((pt.cost * pt.qty for pt in job.parts.all()), 0),
+        repair_profit=job.labour_charge + sum((pt.line_total - pt.cost * pt.qty for pt in job.parts.all()), 0) - job.extra_cost,
+        accessory_options=options('repair_accessory') + [a for a in received if a not in options('repair_accessory')],
+        spares=spares, products=products,
         technicians=technicians, statuses=RepairJob.STATUS))
+
+
+@login_required(login_url='web:login')
+@require_POST
+def repair_part_add(request, pk):
+    """Take a spare part / product from stock and add it to the repair bill."""
+    from decimal import Decimal, InvalidOperation
+    from django.db import transaction
+    from django.contrib import messages
+    from apps.repairs.models import RepairJob, RepairPart
+    from apps.inventory.models import Product
+    from apps.spare_parts.models import SparePart
+    job = get_object_or_404(RepairJob, pk=pk)
+
+    kind, _, item_id = (request.POST.get('item') or '').partition(':')
+    model = {'spare': SparePart, 'product': Product}.get(kind)
+    if not model or not item_id.isdigit():
+        messages.error(request, 'Choose a part from stock.')
+        return redirect('web:repair_detail', pk=pk)
+    item = get_object_or_404(model, pk=int(item_id))
+    try:
+        qty = max(1, int(request.POST.get('qty') or 1))
+    except ValueError:
+        qty = 1
+    try:
+        price = Decimal(str(request.POST.get('unit_price')))
+    except (InvalidOperation, ValueError):
+        price = item.sell_price
+    if price < 0:
+        price = item.sell_price
+
+    try:
+        with transaction.atomic():
+            _take_stock(kind, item.pk, qty, item.name, job.job_number,
+                        request.user, reason='repair_use')
+            RepairPart.objects.create(
+                repair=job, part_type=kind, part_id=item.pk, name=item.name,
+                sku=item.sku, qty=qty, cost=item.cost_price, unit_price=price,
+                added_by=request.user)
+            job.recalc_total()
+            job.save()
+    except OutOfStock as e:
+        messages.error(request, str(e))
+    else:
+        messages.success(request, f'Added {qty} × {item.name} to the repair (stock deducted).')
+    return redirect('web:repair_detail', pk=pk)
+
+
+@login_required(login_url='web:login')
+@require_POST
+def repair_part_remove(request, part_id):
+    """Remove a part from the repair and return it to stock."""
+    from django.db import transaction
+    from django.contrib import messages
+    from apps.repairs.models import RepairPart
+    part = get_object_or_404(RepairPart.objects.select_related('repair'), pk=part_id)
+    job = part.repair
+    with transaction.atomic():
+        if part.part_id:
+            _return_stock(part.part_type, part.part_id, part.qty, job.job_number,
+                          request.user, reason='repair_return')
+        part.delete()
+        job.recalc_total()
+        job.save()
+    messages.success(request, f'Removed {part.name}; {part.qty} returned to stock.')
+    return redirect('web:repair_detail', pk=job.pk)
 
 
 @login_required(login_url='web:login')
@@ -743,10 +1163,17 @@ def repair_update(request, pk):
     old_status = job.status
     job.status      = p.get('status') or job.status
     job.diagnosis   = p.get('diagnosis', job.diagnosis)
-    job.final_cost  = dec(p.get('final_cost'), job.final_cost)
+    job.labour_charge = dec(p.get('labour_charge'), job.labour_charge)
     job.amount_paid = dec(p.get('amount_paid'), job.amount_paid)
+    job.extra_cost = max(Decimal('0'), dec(p.get('extra_cost'), job.extra_cost))
+    job.recalc_total()
+    if 'accessories_present' in p:           # checklist was on the form
+        job.accessories_received = ', '.join(p.getlist('accessories'))
     tech = p.get('technician')
     job.technician_id = int(tech) if tech else None
+    # Profit counts a repair when it is first finished (Ready / Delivered).
+    if job.status in ('ready', 'delivered') and not job.completed_at:
+        job.completed_at = timezone.now()
     job.save()
 
     note = (p.get('note') or '').strip()
@@ -760,7 +1187,6 @@ def repair_update(request, pk):
 @login_required(login_url='web:login')
 def repair_new(request):
     from apps.repairs.models import RepairJob
-    from apps.branches.models import Branch
     from apps.users.models import User
     error = ''
     if request.method == 'POST':
@@ -773,36 +1199,27 @@ def repair_new(request):
                 device_model=p['device_model'],
                 device_imei=p.get('device_imei', ''),
                 fault_description=p['fault_description'],
-                branch_id=p.get('branch') or None,
                 technician_id=p.get('technician') or None,
                 estimated_cost=p.get('estimated_cost') or 0,
+                accessories_received=', '.join(p.getlist('accessories')),
                 created_by=request.user,
             )
             return redirect('web:repair_detail', pk=job.pk)
         except Exception as e:
             error = str(e)
-    branches    = Branch.objects.filter(is_active=True)
+    from apps.settings_app.choices import options
     technicians = User.objects.filter(is_active=True)
     return render(request, 'web/repair_form.html', _ctx('workshop',
-        title='New Repair Job', branches=branches, technicians=technicians, error=error))
+        title='New Repair Job', technicians=technicians, error=error,
+        accessory_options=options('repair_accessory')))
 
 
 # ── Procurement — Purchases ───────────────────────────────────────────────────
 
 @login_required(login_url='web:login')
 def purchases(request):
-    from apps.purchases.models import PurchaseOrder
-    qs = PurchaseOrder.objects.select_related('supplier', 'branch').order_by('-created_at')
-    q      = request.GET.get('q', '')
-    status = request.GET.get('status', '')
-    if q:
-        qs = qs.filter(Q(order_number__icontains=q) | Q(supplier__name__icontains=q))
-    if status:
-        qs = qs.filter(status=status)
-    statuses = PurchaseOrder.STATUS
-    return render(request, 'web/purchases.html', _ctx('procurement',
-        title='Purchase Orders', orders=qs[:100], q=q, status=status, statuses=statuses))
-
+    # Buying stock happens in one place: Purchases (procurement).
+    return redirect('web:procurement_list')
 
 @login_required(login_url='web:login')
 def purchase_detail(request, pk):
@@ -886,55 +1303,145 @@ def supplier_edit(request, pk):
         title=f'Edit {sup.name}', supplier=sup, mode='edit', error=error))
 
 
-# ── Procurement — Transfers ───────────────────────────────────────────────────
+# ── Send Stock Out (transfers to another shop / person) ──────────────────────
+
+def _stock_choices():
+    """Everything in stock, for the "which item" pickers: (value, label)."""
+    from apps.inventory.models import Product, Unit
+    phones = [(f'unit:{u.pk}', f'{u.brand} {u.model} — IMEI {u.imei1}', 1)
+              for u in Unit.objects.filter(lifecycle_state='in_stock').order_by('brand', 'model')]
+    products = [(f'product:{p.pk}', f'{p.name} ({p.sku})', p.stock_qty)
+                for p in Product.objects.filter(stock_qty__gt=0).order_by('name')]
+    spares = [(f'spare:{s.pk}', f'{s.name} ({s.sku})', s.stock)
+              for s in _spare_stock_qs().filter(stock__gt=0).order_by('name')]
+    return [('Mobile Phones', phones), ('Accessories & Products', products), ('Spare Parts', spares)]
+
 
 @login_required(login_url='web:login')
 def transfers(request):
     from apps.transfers.models import Transfer
-    qs = Transfer.objects.select_related('from_branch', 'to_branch').order_by('-created_at')
+    qs = Transfer.objects.prefetch_related('items').order_by('-created_at')
     q = request.GET.get('q', '')
-    status = request.GET.get('status', '')
     if q:
-        qs = qs.filter(Q(transfer_number__icontains=q) |
-                       Q(from_branch__name__icontains=q) |
-                       Q(to_branch__name__icontains=q))
-    if status:
-        qs = qs.filter(status=status)
+        qs = qs.filter(Q(transfer_number__icontains=q) | Q(recipient_name__icontains=q) |
+                       Q(recipient_phone__icontains=q) | Q(destination__icontains=q) |
+                       Q(items__item_name__icontains=q) | Q(items__imei__icontains=q)).distinct()
     return render(request, 'web/transfers.html', _ctx('procurement',
-        title='Transfers', transfers=qs[:100], q=q, status=status, statuses=Transfer.STATUS))
+        title='Send Stock Out', transfers=qs[:200], q=q))
 
 
 @login_required(login_url='web:login')
 def transfer_add(request):
-    from apps.transfers.models import Transfer
-    from apps.branches.models import Branch
-    branches = Branch.objects.order_by('name')
-    error = ''
+    """Send goods to another shop / person: who, where, which items, how many.
+    Stock is deducted immediately (all-or-nothing)."""
+    from django.db import transaction
+    from django.contrib import messages
+    from apps.transfers.models import Transfer, TransferItem
+    from apps.inventory.models import Product, Unit
+    from apps.spare_parts.models import SparePart
+    error, p = '', request.POST
     if request.method == 'POST':
-        p = request.POST
-        fb, tb = p.get('from_branch'), p.get('to_branch')
-        if not fb or not tb:
-            error = 'Select both the source and destination branch.'
-        elif fb == tb:
-            error = 'From and To branches must be different.'
+        rows = []
+        for value, qty in zip(p.getlist('item'), p.getlist('qty')):
+            kind, _, pk = (value or '').partition(':')
+            if kind not in ('unit', 'product', 'spare') or not pk.isdigit():
+                continue
+            try:
+                qty = 1 if kind == 'unit' else max(1, int(qty or 1))
+            except ValueError:
+                qty = 1
+            rows.append((kind, int(pk), qty))
+        if not (p.get('recipient_name') or '').strip():
+            error = 'Enter who the goods are being sent to.'
+        elif not (p.get('destination') or '').strip():
+            error = 'Enter where the goods are being sent.'
+        elif not rows:
+            error = 'Add at least one item to send.'
         else:
-            Transfer.objects.create(
-                from_branch_id=fb, to_branch_id=tb,
-                status=p.get('status') or 'draft',
-                notes=p.get('notes', ''),
-                created_by=request.user,
-            )
-            return redirect('web:transfers')
+            try:
+                with transaction.atomic():
+                    t = Transfer.objects.create(
+                        recipient_name=p['recipient_name'].strip()[:150],
+                        recipient_phone=(p.get('recipient_phone') or '').strip()[:30],
+                        destination=p['destination'].strip()[:255],
+                        notes=(p.get('notes') or '').strip(),
+                        status='dispatched', dispatched_at=timezone.now(),
+                        dispatched_by=request.user, created_by=request.user)
+                    for kind, pk, qty in rows:
+                        model = {'unit': Unit, 'spare': SparePart}.get(kind, Product)
+                        obj = get_object_or_404(model, pk=pk)
+                        name = f'{obj.brand} {obj.model}' if kind == 'unit' else obj.name
+                        _take_stock(kind, pk, qty, name, f'Sent out {t.transfer_number}',
+                                    request.user, reason='transfer_out')
+                        TransferItem.objects.create(
+                            transfer=t, item_type=kind, item_id=pk, item_name=name, qty=qty,
+                            imei=getattr(obj, 'imei1', '') or '', sku=getattr(obj, 'sku', '') or '')
+            except OutOfStock as e:
+                error = str(e)
+            else:
+                messages.success(request, f'{t.transfer_number} saved — stock deducted.')
+                return redirect('web:transfer_detail', pk=t.pk)
     return render(request, 'web/transfer_form.html', _ctx('procurement',
-        title='New Transfer', branches=branches, statuses=Transfer.STATUS, error=error))
+        title='Send Stock Out', choices=_stock_choices(), error=error, post=p))
+
+
+@login_required(login_url='web:login')
+def transfer_detail(request, pk):
+    from apps.transfers.models import Transfer
+    from apps.settings_app.models import CompanySettings
+    t = get_object_or_404(Transfer.objects.prefetch_related('items'), pk=pk)
+    company, _ = CompanySettings.objects.get_or_create(id=1)
+    meta = [('Transfer #', t.transfer_number),
+            ('Date', timezone.localtime(t.created_at).strftime('%d-%m-%Y %I:%M %p')),
+            ('Sent to', t.recipient_name)]
+    if t.recipient_phone:
+        meta.append(('Phone', t.recipient_phone))
+    meta.append(('Destination', t.destination))
+    rows = [{'name': i.item_name, 'sub': f'IMEI {i.imei}' if i.imei else i.sku, 'qty': i.qty}
+            for i in t.items.all()]
+    slip = {'title': 'GOODS SENT OUT', 'meta': meta, 'rows': rows, 'note': t.notes,
+            'total_qty': sum(i.qty for i in t.items.all())}
+    return render(request, 'web/transfer_detail.html', _ctx('procurement',
+        title=t.transfer_number, t=t, company=company, slip=slip))
+
+
+@login_required(login_url='web:login')
+@require_POST
+def transfer_cancel(request, pk):
+    """Goods came back / sending cancelled: return every item to stock."""
+    from django.db import transaction
+    from django.contrib import messages
+    from apps.transfers.models import Transfer
+    t = get_object_or_404(Transfer, pk=pk)
+    if t.status == 'cancelled':
+        return redirect('web:transfer_detail', pk=pk)
+    with transaction.atomic():
+        for i in t.items.all():
+            _return_stock(i.item_type, i.item_id, i.qty, f'Cancelled {t.transfer_number}',
+                          request.user, reason='transfer_in')
+        t.status = 'cancelled'
+        t.save(update_fields=['status', 'updated_at'])
+    messages.success(request, f'{t.transfer_number} cancelled — items returned to stock.')
+    return redirect('web:transfer_detail', pk=pk)
 
 
 # ── Finance — Cash & Expenses ─────────────────────────────────────────────────
 
 @login_required(login_url='web:login')
+def profit(request):
+    """Profit & Loss — real profit from phones, accessories, spare parts and
+    repairs, minus expenses (see profit.py for the exact rules)."""
+    from .profit import profit_summary, unsold_stock_margin
+    period, start, period_label, periods = _period(request)
+    return render(request, 'web/profit.html', _ctx('finance',
+        title='Profit & Loss', p=profit_summary(start), stock_margin=unsold_stock_margin(),
+        period=period, period_label=period_label, periods=periods))
+
+
+@login_required(login_url='web:login')
 def expenses(request):
     from apps.cash.models import Expense, CashSession
-    qs = Expense.objects.select_related('branch').order_by('-expense_date')
+    qs = Expense.objects.order_by('-expense_date')
     q = request.GET.get('q', '')
     category = request.GET.get('category', '')
     if q:
@@ -976,21 +1483,214 @@ def expense_add(request):
 
 # ── Settings ──────────────────────────────────────────────────────────────────
 
-@login_required(login_url='web:login')
-def settings_page(request):
+SETTINGS_UNLOCK_SECONDS = 30 * 60   # idle time before Settings / Backup lock again
+
+
+def _settings_key_ok(key):
+    """The Settings access key: the owner's own key if set, else the installation key."""
+    from django.contrib.auth.hashers import check_password
     from apps.settings_app.models import CompanySettings
-    from apps.users.models import User
-    from apps.branches.models import Branch
-    company, _ = CompanySettings.objects.get_or_create(id=1)
-    users    = User.objects.order_by('username')[:30]
-    branches = Branch.objects.order_by('name')
-    return render(request, 'web/settings.html', _ctx('settings',
-        title='Settings', company=company, users=users, branches=branches,
-        can_edit=request.user.is_superuser,
+    from .activation import check_key
+    company = CompanySettings.objects.first()
+    if company and company.settings_key:
+        return check_password((key or '').strip(), company.settings_key)
+    return check_key(key)
+
+
+def settings_key_required(view):
+    """Settings needs the access key; unlocking lasts for the session
+    until SETTINGS_UNLOCK_SECONDS of inactivity, Lock, or sign-out."""
+    import time
+    from functools import wraps
+    from django.urls import reverse
+
+    @wraps(view)
+    def wrapper(request, *args, **kwargs):
+        at = request.session.get('settings_unlocked_at', 0)
+        if time.time() - at > SETTINGS_UNLOCK_SECONDS:
+            request.session.pop('settings_unlocked_at', None)
+            # a form posted after the unlock expired returns to Settings
+            nxt = request.get_full_path() if request.method == 'GET' else reverse('web:settings')
+            return redirect(f"{reverse('web:settings_unlock')}?next={nxt}")
+        request.session['settings_unlocked_at'] = time.time()   # sliding timeout
+        return view(request, *args, **kwargs)
+    return wrapper
+
+
+@login_required(login_url='web:login')
+def settings_unlock(request):
+    import time
+    from django.utils.http import url_has_allowed_host_and_scheme
+    nxt = request.POST.get('next') or request.GET.get('next') or ''
+    if not url_has_allowed_host_and_scheme(nxt, allowed_hosts={request.get_host()}):
+        nxt = ''
+    error = ''
+    if request.method == 'POST':
+        if _settings_key_ok(request.POST.get('key')):
+            request.session['settings_unlocked_at'] = time.time()
+            return redirect(nxt or 'web:settings')
+        error = 'Wrong access key.'
+    return render(request, 'web/settings_unlock.html', _ctx('settings',
+        title='Enter Access Key', next=nxt, error=error))
+
+
+@login_required(login_url='web:login')
+@require_POST
+def settings_lock(request):
+    request.session.pop('settings_unlocked_at', None)
+    return redirect('web:dashboard')
+
+
+@login_required(login_url='web:login')
+@settings_key_required
+@require_POST
+def theme_save(request):
+    from django.contrib import messages
+    from apps.settings_app.models import CompanySettings, THEMES
+    theme = request.POST.get('theme')
+    if request.user.is_superuser and theme in dict(THEMES):
+        company, _ = CompanySettings.objects.get_or_create(id=1)
+        company.theme = theme
+        company.save(update_fields=['theme', 'updated_at'])
+        messages.success(request, f'Theme changed to {dict(THEMES)[theme]}.')
+    return redirect('web:settings')
+
+
+@login_required(login_url='web:login')
+@settings_key_required
+@require_POST
+def settings_key_save(request):
+    """Owner changes the key that unlocks Settings."""
+    from django.contrib import messages
+    from django.contrib.auth.hashers import make_password
+    from apps.settings_app.models import CompanySettings
+    if not request.user.is_superuser:
+        return redirect('web:settings')
+    p = request.POST
+    new, confirm = (p.get('new_key') or '').strip(), (p.get('confirm_key') or '').strip()
+    if not _settings_key_ok(p.get('current_key')):
+        messages.error(request, 'Current access key is wrong — key not changed.')
+    elif len(new) < 4:
+        messages.error(request, 'New access key must be at least 4 characters.')
+    elif new != confirm:
+        messages.error(request, 'New key and confirmation do not match.')
+    else:
+        company, _ = CompanySettings.objects.get_or_create(id=1)
+        company.settings_key = make_password(new)
+        company.save(update_fields=['settings_key', 'updated_at'])
+        messages.success(request, 'Access key changed. Use the new key next time.')
+    return redirect('web:settings')
+
+
+@login_required(login_url='web:login')
+@settings_key_required
+@require_POST
+def printing_save(request):
+    """Owner picks the paper the bills are printed on."""
+    from django.contrib import messages
+    from apps.settings_app.models import CompanySettings, RECEIPT_PAPERS
+    if request.user.is_superuser:
+        company, _ = CompanySettings.objects.get_or_create(id=1)
+        paper = request.POST.get('receipt_paper')
+        if paper in dict(RECEIPT_PAPERS):
+            company.receipt_paper = paper
+        company.receipt_show_logo = bool(request.POST.get('receipt_show_logo'))
+        company.bill_disclaimer = (request.POST.get('bill_disclaimer') or '').strip()
+        company.save(update_fields=['receipt_paper', 'receipt_show_logo', 'bill_disclaimer', 'updated_at'])
+        messages.success(request, 'Printing settings saved.')
+    return redirect('web:settings')
+
+
+@login_required(login_url='web:login')
+@settings_key_required
+@require_POST
+def option_save(request):
+    """Add / edit / delete one owner-editable dropdown option."""
+    from django.contrib import messages
+    from django.db import IntegrityError, transaction
+    from apps.settings_app.models import ChoiceOption
+    from apps.inventory.models import Unit
+    from apps.procurement.models import ProcurementItem
+    if not request.user.is_superuser:
+        return redirect('web:settings')
+    p = request.POST
+    action = p.get('action')
+    group = p.get('group')
+    if group not in dict(ChoiceOption.GROUPS):
+        return redirect('web:settings')
+    label = (p.get('label') or '').strip()[:50]
+    color = p.get('color') if p.get('color') in dict(ChoiceOption.COLORS) else 'gray'
+    try:
+        order = max(0, int(p.get('sort_order') or 0))
+    except ValueError:
+        order = 0
+    # Existing records store the label, so a rename is carried over to them.
+    renames = {'pta_status': [(Unit, 'pta_status'), (ProcurementItem, 'pta_status')],
+               'device_condition': [(Unit, 'condition'), (ProcurementItem, 'condition')]}
+    try:
+        with transaction.atomic():
+            if action == 'add':
+                if not label:
+                    messages.error(request, 'Enter a name for the new option.')
+                    return redirect('web:settings')
+                if not p.get('sort_order'):
+                    last = ChoiceOption.objects.filter(group=group).order_by('-sort_order').first()
+                    order = (last.sort_order + 1) if last else 0
+                ChoiceOption.objects.create(group=group, label=label, color=color, sort_order=order)
+                messages.success(request, f'Added "{label}".')
+            else:
+                opt = get_object_or_404(ChoiceOption, pk=p.get('id'), group=group)
+                if action == 'delete':
+                    if ChoiceOption.objects.filter(group=group, is_active=True).exclude(pk=opt.pk).count() == 0:
+                        messages.error(request, 'Keep at least one active option.')
+                        return redirect('web:settings')
+                    opt.delete()
+                    messages.success(request, f'Deleted "{opt.label}". Existing records keep their value.')
+                else:
+                    if not label:
+                        messages.error(request, 'Option name cannot be empty.')
+                        return redirect('web:settings')
+                    old = opt.label
+                    opt.label, opt.color, opt.sort_order = label, color, order
+                    opt.is_active = bool(p.get('is_active'))
+                    opt.save()
+                    if old != label:
+                        for model, field in renames.get(group, []):
+                            model.objects.filter(**{field: old}).update(**{field: label})
+                    messages.success(request, f'Saved "{label}".')
+    except IntegrityError:
+        messages.error(request, f'"{label}" already exists in this list.')
+    from django.urls import reverse
+    return redirect(reverse('web:settings') + '#options')
+
+
+@login_required(login_url='web:login')
+def backup_page(request):
+    return render(request, 'web/backup.html', _ctx('backup',
+        title='Backup & Restore', can_edit=request.user.is_superuser,
         restored=request.GET.get('restored'), restore_error=request.GET.get('restore_error')))
 
 
 @login_required(login_url='web:login')
+@settings_key_required
+def settings_page(request):
+    from apps.settings_app.models import CompanySettings
+    from apps.users.models import User
+    company, _ = CompanySettings.objects.get_or_create(id=1)
+    users    = User.objects.order_by('username')[:30]
+    from apps.settings_app.models import THEMES, RECEIPT_PAPERS, ChoiceOption
+    option_groups = [
+        {'key': key, 'label': label,
+         'items': ChoiceOption.objects.filter(group=key).order_by('sort_order', 'id')}
+        for key, label in ChoiceOption.GROUPS]
+    return render(request, 'web/settings.html', _ctx('settings',
+        title='Settings', company=company, users=users,
+        themes=THEMES, papers=RECEIPT_PAPERS, option_groups=option_groups,
+        option_colors=ChoiceOption.COLORS, can_edit=request.user.is_superuser))
+
+
+@login_required(login_url='web:login')
+@settings_key_required
 @require_POST
 def company_save(request):
     """Admin edits company profile — incl. the shop location printed on bills."""
@@ -1023,7 +1723,7 @@ def backup_download(request):
     from django.http import HttpResponse
 
     if not request.user.is_superuser:
-        return redirect('web:settings')
+        return redirect('web:backup')
 
     stamp = timezone.now().strftime('%Y%m%d_%H%M%S')
     buf = io.BytesIO()
@@ -1070,15 +1770,15 @@ def restore_backup(request):
     from django.urls import reverse
 
     if not request.user.is_superuser:
-        return redirect('web:settings')
+        return redirect('web:backup')
 
     f = request.FILES.get('backup')
     if not f:
-        return redirect(f"{reverse('web:settings')}?restore_error=Choose+a+backup+file+first.")
+        return redirect(f"{reverse('web:backup')}?restore_error=Choose+a+backup+file+first.")
     try:
         z = zipfile.ZipFile(f)
     except zipfile.BadZipFile:
-        return redirect(f"{reverse('web:settings')}?restore_error=Not+a+valid+backup+zip.")
+        return redirect(f"{reverse('web:backup')}?restore_error=Not+a+valid+backup+zip.")
 
     names = z.namelist()
     db = dj_settings.DATABASES['default']
@@ -1103,7 +1803,7 @@ def restore_backup(request):
             call_command('loaddata', tmpj.name)
             os.unlink(tmpj.name)
         else:
-            return redirect(f"{reverse('web:settings')}?restore_error=Backup+has+no+database.")
+            return redirect(f"{reverse('web:backup')}?restore_error=Backup+has+no+database.")
 
         # Restore uploaded media files.
         media = str(dj_settings.MEDIA_ROOT)
@@ -1114,12 +1814,13 @@ def restore_backup(request):
                 with open(target, 'wb') as out:
                     out.write(z.read(n))
     except Exception as e:
-        return redirect(f"{reverse('web:settings')}?restore_error=Restore+failed:+{str(e)[:80]}")
+        return redirect(f"{reverse('web:backup')}?restore_error=Restore+failed:+{str(e)[:80]}")
 
-    return redirect(f"{reverse('web:settings')}?restored=1")
+    return redirect(f"{reverse('web:backup')}?restored=1")
 
 
 @login_required(login_url='web:login')
+@settings_key_required
 @require_POST
 def user_edit(request, pk):
     """Admin renames a user (updates full_name + first/last so it shows everywhere)."""
@@ -1141,24 +1842,9 @@ def user_edit(request, pk):
 @login_required(login_url='web:login')
 def spare_parts(request):
     from apps.spare_parts.models import SparePart
-    from django.db.models import Sum, OuterRef, Subquery, Value, IntegerField
-    from django.db.models.functions import Coalesce
-    from apps.spare_parts.models import SparePartLedger
-
-    ledger_sum = (
-        SparePartLedger.objects.filter(part=OuterRef('pk'))
-        .values('part').annotate(s=Sum('qty')).values('s')
-    )
-    qs = SparePart.objects.annotate(
-        stock_level=Coalesce(Subquery(ledger_sum, output_field=IntegerField()), Value(0, output_field=IntegerField()))
-    ).order_by('category', 'name')
-
+    qs = stock_queryset('spare_parts', request.GET)
     category = request.GET.get('category', '')
     q        = request.GET.get('q', '')
-    if category:
-        qs = qs.filter(category=category)
-    if q:
-        qs = qs.filter(Q(name__icontains=q) | Q(sku__icontains=q) | Q(brand_compat__icontains=q))
 
     categories = SparePart.Category.choices
     return render(request, 'web/spare_parts.html', _ctx('stock',
@@ -1239,15 +1925,27 @@ def procurement_add(request):
             return redirect('web:procurement_add')
     else:
         form = ProcurementForm()
-        formset = ProcurementItemFormSet()
+        # "+ Add Device / Accessory…" buttons pre-select the item category.
+        cat = request.GET.get('category')
+        valid = {'imei', 'accessory', 'spare_part', 'product'}
+        formset = ProcurementItemFormSet(initial=[{'category': cat}] if cat in valid else None)
 
     recent_ids = request.session.get('recent_procurements', [])
     recent = list(Procurement.objects.filter(pk__in=recent_ids)
                   .select_related('supplier').prefetch_related('items'))
     recent.sort(key=lambda p: recent_ids.index(p.pk))   # keep newest-first order
     return render(request, 'web/procurement_form.html', _ctx('procurement',
-        title='New Procurement', form=form, formset=formset, mode='add',
-        existing_catalog=_existing_catalog(), recent=recent))
+        title='New Purchase', form=form, formset=formset, mode='add',
+        existing_catalog=_existing_catalog(), recent=recent, **_device_options()))
+
+
+def _device_options():
+    """PTA / condition choices for the procurement 'add row' template."""
+    from apps.settings_app.choices import options
+    from apps.spare_parts.models import SparePart
+    return {'pta_options': options('pta_status'),
+            'condition_options': options('device_condition'),
+            'spare_categories': SparePart.Category.choices}
 
 
 @login_required(login_url='web:login')
@@ -1255,37 +1953,55 @@ def procurement_edit(request, pk):
     from django.db import transaction
     from apps.procurement.models import Procurement
     from apps.procurement.forms import ProcurementForm, ProcurementItemFormSet
-    from apps.procurement.stock_sync import apply_procurement, reverse_procurement
+    from django.contrib import messages
+    from apps.procurement.stock_sync import (apply_procurement, reverse_procurement,
+                                             affected_stock, check_no_negative_stock,
+                                             StockConflict)
 
     proc = get_object_or_404(Procurement, pk=pk)
     if request.method == 'POST':
         form = ProcurementForm(request.POST, instance=proc)
         formset = ProcurementItemFormSet(request.POST, instance=proc)
         if form.is_valid() and formset.is_valid():
-            with transaction.atomic():
-                reverse_procurement(proc, request.user)   # undo old stock effect
-                form.save()
-                formset.save()                            # apply edits / adds / deletes
-                proc.refresh_from_db()
-                apply_procurement(proc, request.user)     # re-apply new stock effect
+            try:
+                with transaction.atomic():
+                    before_p, before_s = affected_stock(proc)
+                    reverse_procurement(proc, request.user)   # undo old stock effect
+                    form.save()
+                    formset.save()                            # apply edits / adds / deletes
+                    proc.refresh_from_db()
+                    apply_procurement(proc, request.user)     # re-apply new stock effect
+                    after_p, after_s = affected_stock(proc)
+                    check_no_negative_stock(before_p | after_p, before_s | after_s)
+            except StockConflict as e:
+                messages.error(request, f'Not saved — stock from this purchase was already sold: {e}.')
+                return redirect('web:procurement_edit', pk=proc.pk)
             return redirect('web:procurement_detail', pk=proc.pk)
     else:
         form = ProcurementForm(instance=proc)
         formset = ProcurementItemFormSet(instance=proc)
     return render(request, 'web/procurement_form.html', _ctx('procurement',
-        title=f'Edit Procurement #{proc.pk}', form=form, formset=formset, mode='edit', proc=proc,
-        existing_catalog=_existing_catalog()))
+        title=f'Edit Purchase #{proc.pk}', form=form, formset=formset, mode='edit', proc=proc,
+        existing_catalog=_existing_catalog(), **_device_options()))
 
 
 @login_required(login_url='web:login')
 @require_POST
 def procurement_delete(request, pk):
     from django.db import transaction
+    from django.contrib import messages
     from apps.procurement.models import Procurement
-    from apps.procurement.stock_sync import reverse_procurement
+    from apps.procurement.stock_sync import (reverse_procurement, affected_stock,
+                                             check_no_negative_stock, StockConflict)
 
     proc = get_object_or_404(Procurement, pk=pk)
-    with transaction.atomic():
-        reverse_procurement(proc, request.user)   # reverse stock, then delete
-        proc.delete()
+    try:
+        with transaction.atomic():
+            products, spares = affected_stock(proc)
+            reverse_procurement(proc, request.user)   # reverse stock, then delete
+            check_no_negative_stock(products, spares)
+            proc.delete()
+    except StockConflict as e:
+        messages.error(request, f'Cannot delete — stock from this purchase was already sold: {e}.')
+        return redirect('web:procurement_detail', pk=proc.pk)
     return redirect('web:procurement_list')

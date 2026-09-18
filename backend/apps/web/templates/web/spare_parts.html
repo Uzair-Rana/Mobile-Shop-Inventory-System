@@ -28,11 +28,15 @@
         </div>
         <button type="submit" class="btn btn-secondary">Search</button>
     </form>
-    <button type="button" onclick="waShareAll()" class="btn"
-        style="background:#25D366;color:#fff;border:none">📲 Share All on WhatsApp</button>
+    <button type="button" onclick="shareStockSheet('spare_parts', this, 'svg')" class="btn"
+        style="background:#25D366;color:#fff;border:none" title="Send the whole list as a price-list image (SVG)">📲 Share on WhatsApp</button>
+    <button type="button" onclick="downloadStockExcel('spare_parts')" class="btn btn-secondary" title="Download this list as an Excel sheet">⬇ Excel</button>
+    <a href="{% url 'web:procurement_add' %}?category=spare_part" class="btn btn-primary">+ Add Spare Part</a>
+    {% include "web/_view_toggle.html" with key="spare_parts" %}
 </div>
 
-<div class="table-card">
+<div class="view-switch" data-view-key="spare_parts" data-view="list">
+<div class="table-card" data-pane="list">
     <table class="table">
         <thead>
             <tr>
@@ -87,13 +91,36 @@
                 <td colspan="9" style="text-align:center;padding:3rem;color:var(--text-muted)">
                     No spare parts found.
                     {% if not active_cat %}Add parts via <a href="{% url 'web:procurement_add' %}"
-                        style="color:var(--brand-500);font-weight:700">New Procurement</a> and select category
+                        style="color:var(--brand-500);font-weight:700">New Purchase</a> and select category
                     <em>Spare Parts</em>.{% endif %}
                 </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
+</div>
+
+<div class="stock-grid" data-pane="grid">
+    {% for p in parts %}
+    <div class="stock-card">
+        <a href="{% url 'web:spare_part_detail' p.pk %}" class="sc-name">{{ p.name }}</a>
+        <div class="sc-meta"><code>{{ p.sku }}</code> · {{ p.get_category_display }}</div>
+        <div class="sc-meta">{{ p.brand_compat|default:"—" }}{% if p.model_compat %} · {{ p.model_compat }}{% endif %}</div>
+        <div class="sc-price">Rs. {{ p.sell_price|floatformat:0 }}</div>
+        <div class="sc-meta">Cost Rs. {{ p.cost_price|floatformat:0 }}</div>
+        <div class="sc-foot">
+            <span class="badge {% if p.stock_level <= p.reorder_level %}badge-red{% else %}badge-green{% endif %}">{{ p.stock_level }} in stock</span>
+            <span style="display:flex;gap:.3rem">
+                <a href="{% url 'web:spare_part_detail' p.pk %}" class="btn btn-secondary" style="padding:.25rem .6rem;font-size:.75rem">Ledger →</a>
+            <button type="button" onclick="waShareOne({{ forloop.counter0 }})" title="Share on WhatsApp"
+                style="background:#25D366;color:#fff;border:none;border-radius:6px;padding:.25rem .55rem;cursor:pointer;font-size:.85rem">📲</button>
+            </span>
+        </div>
+    </div>
+    {% empty %}
+    <div class="info-card sc-empty" style="text-align:center;color:var(--text-muted)">No spare parts found.</div>
+    {% endfor %}
+</div>
 </div>
 
 <script>
@@ -110,12 +137,6 @@
         if (p.brand) t += '\nBrand: ' + p.brand;
         t += '\nPrice: Rs. ' + p.price;
         waOpen(t);
-    }
-    function waShareAll() {
-        if (!PRODUCTS.length) { alert('No parts to share.'); return; }
-        var lines = ['*' + SHOP + '* — Spare Parts', ''];
-        PRODUCTS.forEach(function (p) { lines.push('• ' + p.name + (p.brand ? ' (' + p.brand + ')' : '') + ' — Rs. ' + p.price); });
-        waOpen(lines.join('\n'));
     }
 </script>
 {% endblock %}

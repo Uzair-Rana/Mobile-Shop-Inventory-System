@@ -149,6 +149,22 @@
                     </label>
                     {{ item_form.imeis }}
                     {% if item_form.imeis.errors %}<div class="form-error">{{ item_form.imeis.errors.0 }}</div>{% endif %}
+                    <div class="form-grid-2" style="margin-top:.5rem">
+                        <div class="form-field">
+                            <label class="form-label">PTA Status</label>
+                            {{ item_form.pta_status }}
+                        </div>
+                        <div class="form-field">
+                            <label class="form-label">Condition</label>
+                            {{ item_form.condition }}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Spare-part category — shown only for spare-part lines -->
+                <div class="form-field spare-section" style="margin-top:.5rem;display:none">
+                    <label class="form-label">Spare Part Category</label>
+                    {{ item_form.spare_category }}
                 </div>
 
                 <!-- Non-field errors for this row -->
@@ -278,6 +294,26 @@
                     comma-separated</small></label>
             <textarea name="items-__prefix__-imeis" class="form-textarea imei-field" rows="2"
                 placeholder="One IMEI per line (or comma separated)"></textarea>
+            <div class="form-grid-2" style="margin-top:.5rem">
+                <div class="form-field">
+                    <label class="form-label">PTA Status</label>
+                    <select name="items-__prefix__-pta_status" class="form-select">
+                        {% for o in pta_options %}<option value="{{ o }}">{{ o }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label class="form-label">Condition</label>
+                    <select name="items-__prefix__-condition" class="form-select">
+                        {% for o in condition_options %}<option value="{{ o }}">{{ o }}</option>{% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="form-field spare-section" style="margin-top:.5rem;display:none">
+            <label class="form-label">Spare Part Category</label>
+            <select name="items-__prefix__-spare_category" class="form-select">
+                {% for val, lbl in spare_categories %}<option value="{{ val }}">{{ lbl }}</option>{% endfor %}
+            </select>
         </div>
         <hr style="border:none;border-top:1px solid var(--border);margin:.75rem 0 .25rem">
     </div>
@@ -325,6 +361,8 @@
             var imeiSection = row.querySelector('.imei-section');
             if (!sel || !imeiSection) return;
             imeiSection.style.display = sel.value === 'imei' ? 'block' : 'none';
+            var spare = row.querySelector('.spare-section');
+            if (spare) spare.style.display = sel.value === 'spare_part' ? 'block' : 'none';
         }
 
         function attachCatListener(row) {

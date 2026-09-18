@@ -1,0 +1,5 @@
+{# Grid / List switch. Usage: {% include "web/_view_toggle.html" with key="accessories" %} #}
+<div class="view-toggle" data-view-key="{{ key }}" title="Show as a list or as cards">
+    <button type="button" data-view="list" onclick="setView('{{ key }}', 'list')">☰ List</button>
+    <button type="button" data-view="grid" onclick="setView('{{ key }}', 'grid')">▦ Grid</button>
+</div>

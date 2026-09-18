@@ -1,0 +1,52 @@
+{% extends "web/base.html" %}
+{% block content %}
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem">
+    <div>
+        <h1 class="page-title gradient-text">{{ t.transfer_number }}</h1>
+        <p class="page-subtitle">Sent to {{ t.recipient_name }} · {{ t.destination }}
+            <span class="badge {% if t.status == 'cancelled' %}badge-gray{% else %}badge-green{% endif %}" style="margin-left:.4rem">
+                {% if t.status == 'cancelled' %}Cancelled — items back in stock{% else %}Sent — stock deducted{% endif %}</span></p>
+    </div>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+        <button onclick="printReceipt('slip')" class="btn btn-primary">🖨 Print Slip</button>
+        {% if t.status != 'cancelled' %}
+        <form method="post" action="{% url 'web:transfer_cancel' t.pk %}"
+            onsubmit="return confirm('Cancel this transfer and put every item back into stock?')">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-secondary">↩ Cancel &amp; Return to Stock</button>
+        </form>
+        {% endif %}
+        <a href="{% url 'web:transfers' %}" class="btn btn-secondary">← All Transfers</a>
+    </div>
+</div>
+
+<!-- The slip that prints (same paper as bills: Settings → Printing) -->
+<div class="receipt-preview" style="max-width:680px">
+    <div id="slip" data-default-print>
+        <div class="rc rc-{{ company.receipt_paper|default:'80mm' }}" data-paper="{{ company.receipt_paper|default:'80mm' }}">
+            <div class="rc-head">
+                <div class="rc-shop">{{ company.name|default:"My Phone" }}</div>
+                {% if company.address %}<div class="rc-small" style="white-space:pre-line">{{ company.address }}</div>{% endif %}
+                {% if company.phone %}<div class="rc-small">Tel: {{ company.phone }}</div>{% endif %}
+            </div>
+            <div class="rc-title">{{ slip.title }}</div>
+            <table class="rc-meta">
+                {% for label, value in slip.meta %}<tr><td>{{ label }}</td><td>{{ value }}</td></tr>{% endfor %}
+            </table>
+            <table class="rc-items">
+                <thead><tr><th>Item</th><th class="n">Qty</th></tr></thead>
+                <tbody>
+                    {% for r in slip.rows %}
+                    <tr><td>{{ r.name }}{% if r.sub %}<div class="rc-sub">{{ r.sub }}</div>{% endif %}</td><td class="n">{{ r.qty }}</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <table class="rc-totals"><tr class="rc-grand"><td>Total items</td><td class="n">{{ slip.total_qty }}</td></tr></table>
+            {% if slip.note %}<div class="rc-foot"><em>{{ slip.note }}</em></div>{% endif %}
+            <div class="rc-foot">Received by: ______________________</div>
+            {% if company.bill_disclaimer %}<div class="rc-disclaimer" dir="auto">{{ company.bill_disclaimer }}</div>{% endif %}
+            <div class="devnest-credit">Developed by Devnest</div>
+        </div>
+    </div>
+</div>
+{% endblock %}

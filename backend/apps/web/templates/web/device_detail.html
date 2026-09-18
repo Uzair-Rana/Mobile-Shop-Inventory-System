@@ -1,4 +1,5 @@
 {% extends "web/base.html" %}
+{% load web_extras %}
 {% block content %}
 <div class="page-header"
     style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem">
@@ -37,15 +38,11 @@
                         class="info-value" style="font-family:ui-monospace,monospace">{{ unit.serial }}</span></div>{% endif %}
                 <div class="info-field"><span class="info-label">Brand</span><span class="info-value">{{ unit.brand }}</span></div>
                 <div class="info-field"><span class="info-label">Model</span><span class="info-value">{{ unit.model }}</span></div>
-                <div class="info-field"><span class="info-label">Condition</span><span class="info-value">{{ unit.condition }}</span></div>
+                <div class="info-field"><span class="info-label">Condition</span><span class="badge {{ unit.condition|option_badge:option_badges.device_condition }}">{{ unit.condition }}</span></div>
                 <div class="info-field">
                     <span class="info-label">PTA Status</span>
-                    <span
-                        class="badge {% if unit.pta_status == 'PTA Approved' %}badge-green{% elif unit.pta_status == 'PTA Blocked' %}badge-red{% else %}badge-yellow{% endif %}">
-                        {{ unit.pta_status }}
-                    </span>
+                    <span class="badge {{ unit.pta_status|option_badge:option_badges.pta_status }}">{{ unit.pta_status }}</span>
                 </div>
-                <div class="info-field"><span class="info-label">Branch</span><span class="info-value">{{ unit.branch.name|default:"—" }}</span></div>
                 <div class="info-field"><span class="info-label">Added by</span><span class="info-value">{{ unit.added_by.username|default:"—" }}</span></div>
                 <div class="info-field"><span class="info-label">Added on</span><span class="info-value">{{ unit.created_at|date:"d M Y" }}</span></div>
             </div>
@@ -78,11 +75,40 @@
         <div class="info-card">
             <h2
                 style="font-size:1rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:0 0 1rem">
-                Actions</h2>
-            <div style="display:flex;flex-direction:column;gap:.5rem">
-                <a href="{% url 'web:devices' %}" class="btn btn-secondary" style="justify-content:center">← All
-                    Devices</a>
-            </div>
+                Edit Device</h2>
+            <form method="post" action="{% url 'web:device_update' unit.pk %}">
+                {% csrf_token %}
+                <div class="form-field" style="margin-bottom:.6rem">
+                    <label class="form-label">PTA Status</label>
+                    <select name="pta_status" class="form-select">
+                        {% for o in pta_options %}<option value="{{ o }}" {% if o == unit.pta_status %}selected{% endif %}>{{ o }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="form-field" style="margin-bottom:.6rem">
+                    <label class="form-label">Condition</label>
+                    <select name="condition" class="form-select">
+                        {% for o in condition_options %}<option value="{{ o }}" {% if o == unit.condition %}selected{% endif %}>{{ o }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="form-grid-2" style="margin-bottom:.6rem">
+                    <div class="form-field">
+                        <label class="form-label">Sell Price (Rs.)</label>
+                        <input type="number" name="sell_price" class="form-input" min="0" step="1"
+                            value="{{ unit.sell_price|floatformat:0 }}" />
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">IMEI 2</label>
+                        <input type="text" name="imei2" class="form-input" value="{{ unit.imei2|default:'' }}" />
+                    </div>
+                </div>
+                <div class="form-field" style="margin-bottom:.75rem">
+                    <label class="form-label">Serial No.</label>
+                    <input type="text" name="serial" class="form-input" value="{{ unit.serial }}" />
+                </div>
+                <button type="submit" class="btn btn-primary">💾 Save</button>
+            </form>
+            <p style="font-size:.75rem;color:var(--text-muted);margin:.75rem 0 0">
+                PTA and condition choices can be changed in Settings → Dropdown Options.</p>
         </div>
     </div>
 </div>

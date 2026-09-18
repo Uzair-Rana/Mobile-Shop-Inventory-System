@@ -17,20 +17,23 @@
         </label>
         <button type="submit" class="btn btn-secondary">Search</button>
     </form>
-    <button type="button" onclick="waShareAll()" class="btn"
-        style="background:#25D366;color:#fff;border:none">📲 Share All on WhatsApp</button>
-    <a href="{% url 'web:procurement_add' %}" class="btn btn-primary">+ Add via Procurement</a>
+    <button type="button" onclick="shareStockSheet('products', this, 'svg')" class="btn"
+        style="background:#25D366;color:#fff;border:none" title="Send the whole list as a price-list image (SVG)">📲 Share on WhatsApp</button>
+    <button type="button" onclick="downloadStockExcel('products')" class="btn btn-secondary" title="Download this list as an Excel sheet">⬇ Excel</button>
+    <a href="{% url 'web:procurement_add' %}?category=product" class="btn btn-primary">+ Add Product</a>
+    {% include "web/_view_toggle.html" with key="products" %}
 </div>
 
 <div class="info-card" style="margin-bottom:1rem;background:#fff7ed;border-left:3px solid #f97316;padding:.75rem 1rem">
     <p style="margin:0;font-size:.875rem;color:#9a3412">
-        <strong>Stock is managed through Procurement.</strong>
+        <strong>Stock is added through Purchases.</strong>
         To add or restock products, use <a href="{% url 'web:procurement_add' %}"
-            style="color:#c2410c;font-weight:700">New Procurement</a>.
+            style="color:#c2410c;font-weight:700">New Purchase</a>.
     </p>
 </div>
 
-<div class="table-card">
+<div class="view-switch" data-view-key="products" data-view="list">
+<div class="table-card" data-pane="list">
     <table class="table">
         <thead>
             <tr>
@@ -66,12 +69,31 @@
             <tr>
                 <td colspan="8" style="text-align:center;padding:3rem;color:var(--text-muted)">
                     No products yet — add them via <a href="{% url 'web:procurement_add' %}"
-                        style="color:var(--brand)">Procurement</a>.
+                        style="color:var(--brand)">Purchases</a>.
                 </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
+</div>
+
+<div class="stock-grid" data-pane="grid">
+    {% for p in products %}
+    <div class="stock-card">
+        <div class="sc-name">{{ p.name }}</div>
+        <div class="sc-meta"><code>{{ p.sku }}</code>{% if p.brand %} · {{ p.brand }}{% endif %}{% if p.category %} · {{ p.category }}{% endif %}</div>
+        <div class="sc-price">Rs. {{ p.sell_price|floatformat:0 }}</div>
+        <div class="sc-meta">Cost Rs. {{ p.cost_price|floatformat:0 }}</div>
+        <div class="sc-foot">
+            <span class="badge {% if p.stock_qty <= p.reorder_level %}badge-red{% else %}badge-green{% endif %}">{{ p.stock_qty }} in stock</span>
+            <button type="button" onclick="waShareOne({{ forloop.counter0 }})" title="Share on WhatsApp"
+                style="background:#25D366;color:#fff;border:none;border-radius:6px;padding:.25rem .55rem;cursor:pointer;font-size:.85rem">📲</button>
+        </div>
+    </div>
+    {% empty %}
+    <div class="info-card sc-empty" style="text-align:center;color:var(--text-muted)">No products yet.</div>
+    {% endfor %}
+</div>
 </div>
 
 <script>
@@ -91,14 +113,6 @@
         if (p.brand) t += '\nBrand: ' + p.brand;
         t += '\nPrice: Rs. ' + p.price;
         waOpen(t);
-    }
-    function waShareAll() {
-        if (!PRODUCTS.length) { alert('No products to share.'); return; }
-        var lines = ['*' + SHOP + '* — Product List', ''];
-        PRODUCTS.forEach(function (p) {
-            lines.push('• ' + p.name + (p.brand ? ' (' + p.brand + ')' : '') + ' — Rs. ' + p.price);
-        });
-        waOpen(lines.join('\n'));
     }
 </script>
 {% endblock %}

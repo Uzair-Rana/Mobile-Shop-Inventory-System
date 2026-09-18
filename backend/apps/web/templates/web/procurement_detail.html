@@ -94,6 +94,9 @@
                 <td style="text-align:right"><strong>Rs. {{ item.line_total|floatformat:0 }}</strong></td>
                 <td style="font-size:.75rem;color:var(--text-muted);max-width:180px;word-break:break-all">
                     {% if item.imeis %}{{ item.imeis }}{% else %}—{% endif %}
+                    {% if item.category == 'imei' and item.pta_status %}
+                    <div style="margin-top:.25rem">{{ item.pta_status }} · {{ item.condition }}</div>
+                    {% endif %}
                 </td>
                 <td>
                     {% if item.applied %}

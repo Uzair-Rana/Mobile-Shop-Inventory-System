@@ -1,0 +1,21 @@
+{% extends "web/base.html" %}
+{% block content %}
+<div class="info-card" style="max-width:420px;margin:3rem auto;text-align:center">
+    <div style="font-size:2.5rem;margin-bottom:.5rem">🔒</div>
+    <h1 class="page-title gradient-text" style="font-size:1.4rem">Access Key Required</h1>
+    <p style="color:var(--text-muted);font-size:.9rem;margin:.5rem 0 1.25rem">
+        Settings are protected. Enter the access key to continue.
+    </p>
+    <form method="post" action="{% url 'web:settings_unlock' %}">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ next }}" />
+        <input type="password" name="key" class="form-input" placeholder="Access key" required autofocus
+            autocomplete="off" style="width:100%;text-align:center;margin-bottom:.75rem" />
+        {% if error %}<div class="form-error" style="margin-bottom:.75rem">⚠ {{ error }}</div>{% endif %}
+        <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center">🔓 Unlock</button>
+    </form>
+    <p style="color:var(--text-muted);font-size:.78rem;margin:1rem 0 0">
+        Stays unlocked for 30 minutes of use, or until you press Lock or sign out.
+    </p>
+</div>
+{% endblock %}

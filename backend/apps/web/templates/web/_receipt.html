@@ -1,0 +1,59 @@
+{# Compact "pharmacy style" bill, laid out for the paper chosen in Settings → Printing. #}
+{# Context: receipt = {title, meta: [(label, value)], rows: [{name, sub, qty, rate, amount}], #}
+{#          totals: [{label, value, minus, strong, alert}], note}; company.                      #}
+<div class="rc rc-{{ company.receipt_paper|default:'80mm' }}" data-paper="{{ company.receipt_paper|default:'80mm' }}">
+    <div class="rc-head">
+        {% if company.receipt_show_logo and company.logo %}
+        <img src="{{ company.logo.url }}" alt="" class="rc-logo" />
+        {% endif %}
+        <div class="rc-shop">{{ company.name|default:"My Phone" }}</div>
+        {% if company.address %}<div class="rc-small" style="white-space:pre-line">{{ company.address }}</div>{% endif %}
+        {% if company.phone %}<div class="rc-small">Tel: {{ company.phone }}</div>{% endif %}
+        {% if company.ntn %}<div class="rc-small">NTN: {{ company.ntn }}</div>{% endif %}
+    </div>
+
+    <div class="rc-title">{{ receipt.title }}</div>
+
+    <table class="rc-meta">
+        {% for label, value in receipt.meta %}
+        <tr><td>{{ label }}</td><td>{{ value }}</td></tr>
+        {% endfor %}
+    </table>
+
+    <table class="rc-items">
+        <thead>
+            <tr><th>Item</th><th class="n">Qty</th><th class="n">Rate</th><th class="n">Amount</th></tr>
+        </thead>
+        <tbody>
+            {% for r in receipt.rows %}
+            <tr>
+                <td>{{ r.name }}{% if r.sub %}<div class="rc-sub">{{ r.sub }}</div>{% endif %}</td>
+                <td class="n">{{ r.qty }}</td>
+                <td class="n">{{ r.rate|floatformat:0 }}</td>
+                <td class="n">{{ r.amount|floatformat:0 }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" class="rc-small">No items.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <table class="rc-totals">
+        {% for t in receipt.totals %}
+        <tr class="{% if t.strong %}rc-grand{% endif %}{% if t.alert %} rc-alert{% endif %}">
+            <td>{{ t.label }}</td>
+            <td class="n">{% if t.minus %}−{% endif %}Rs. {{ t.value|floatformat:0 }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <div class="rc-foot">
+        Thank you for choosing {{ company.name|default:"My Phone" }}!
+        {% if company.receipt_footer %}<div>{{ company.receipt_footer }}</div>{% endif %}
+        {% if receipt.note %}<div><em>{{ receipt.note }}</em></div>{% endif %}
+    </div>
+    {% if company.bill_disclaimer %}
+    <div class="rc-disclaimer" dir="auto">{{ company.bill_disclaimer }}</div>
+    {% endif %}
+    <div class="devnest-credit">Developed by Devnest</div>
+</div>

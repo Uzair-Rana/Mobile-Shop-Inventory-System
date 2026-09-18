@@ -4,7 +4,7 @@ register = template.Library()
 
 _ICONS = {
     'home': '🏠', 'pos': '🧾', 'box': '📦', 'receipt': '🧾', 'wrench': '🔧',
-    'truck': '🚚', 'cash': '💵', 'cog': '⚙️', 'device': '📱', 'plug': '🔌',
+    'truck': '🚚', 'cash': '💵', 'cog': '⚙️', 'backup': '💾', 'device': '📱', 'plug': '🔌',
     'tag': '🏷️', 'users': '👥', 'building': '🏢', 'transfer': '🔁',
     'expense': '💸', 'chart': '📊',
 }
@@ -19,3 +19,9 @@ def nav_icon(name):
 def underscores(value):
     """snake_case_status -> 'snake case status' (pair with text-transform)."""
     return str(value).replace('_', ' ')
+
+
+@register.filter
+def option_badge(label, group_map):
+    """{{ u.pta_status|option_badge:option_badges.pta_status }} → badge class."""
+    return (group_map or {}).get(label, 'badge-gray')

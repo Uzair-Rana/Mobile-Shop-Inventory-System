@@ -1,6 +1,6 @@
 {% load static %}{% load web_extras %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="{{ site_company.theme|default:'crimson' }}">
 
 <head>
   <meta charset="utf-8">
@@ -57,9 +57,30 @@
           </div>
           <div class="su-role">{{ request.user.is_superuser|yesno:"Owner,Staff" }}</div>
         </div>
+        <button type="button" class="logout-btn" title="About / company info"
+          onclick="document.getElementById('info-dialog').showModal()">ⓘ</button>
         <a href="{% url 'web:logout' %}" class="logout-btn" title="Sign out">⏏</a>
       </div>
     </aside>
+
+    <!-- ⓘ Info — developer / company details -->
+    <dialog id="info-dialog" class="info-dialog" onclick="if (event.target === this) this.close()">
+      <div class="info-dialog-body">
+        <div class="info-dialog-logo">DN</div>
+        <h2>{{ developer.name }}</h2>
+        <p class="info-dialog-tag">{{ developer.tagline }}</p>
+        <table>
+          {% if developer.email %}<tr><td>Email</td><td><a href="mailto:{{ developer.email }}">{{ developer.email }}</a></td></tr>{% endif %}
+          {% if developer.phone %}<tr><td>Phone / WhatsApp</td><td>{{ developer.phone }}</td></tr>{% endif %}
+          {% if developer.website %}<tr><td>Website</td><td><a href="{{ developer.website }}" target="_blank" rel="noopener">{{ developer.website }}</a></td></tr>{% endif %}
+          {% if developer.address %}<tr><td>Address</td><td>{{ developer.address }}</td></tr>{% endif %}
+          <tr><td>Software</td><td>Mobile Shop ERP v{{ app_version }}</td></tr>
+          <tr><td>Licensed to</td><td>{{ site_company.name|default:"My Phone" }}</td></tr>
+        </table>
+        <p class="info-dialog-foot">Developed by Devnest · For support, contact us using the details above.</p>
+        <button type="button" class="btn btn-primary" onclick="this.closest('dialog').close()">Close</button>
+      </div>
+    </dialog>
 
     <!-- Main -->
     <div class="main">
@@ -69,11 +90,122 @@
           <button type="button" onclick="if(history.length>1){history.back()}else{location.href='{% url 'web:dashboard' %}'}"
             class="btn btn-secondary no-print" style="margin-bottom:1rem" title="Go back">← Back</button>
           {% endif %}
+          {% for m in messages %}
+          <div class="flash flash-{{ m.tags }} no-print">{{ m }}</div>
+          {% endfor %}
           {% block content %}{% endblock %}
         </div>
       </main>
     </div>
   </div>
+  <div id="print-root"></div>
+  <style id="print-page-style"></style>
+  <script>
+    // Print ONE element (a bill or token) on its own page: copy it into
+    // #print-root and hide everything else, so nothing leaves blank pages.
+    var PAGE_RULES = {
+      '80mm': '@page { margin: 0 }',
+      '58mm': '@page { margin: 0 }',
+      'a5': '@page { size: A5; margin: 10mm }',
+      'a4': '@page { size: A4; margin: 12mm }'
+    };
+    function preparePrint(id) {
+      var src = document.getElementById(id);
+      if (!src) return false;
+      var root = document.getElementById('print-root');
+      var clone = src.cloneNode(true);
+      clone.removeAttribute('id');
+      clone.style.display = 'block';
+      root.innerHTML = '';
+      root.appendChild(clone);
+      var paperEl = clone.matches('[data-paper]') ? clone : clone.querySelector('[data-paper]');
+      var paper = paperEl ? paperEl.dataset.paper : '80mm';
+      // A4 / A5: shrink a long bill so it always fits on ONE page. (Thermal
+      // rolls are continuous paper, so they never need scaling.)
+      var pageMm = { a5: 190, a4: 273 }[paper];   // printable height after margins
+      if (pageMm) {
+        root.style.cssText = 'display:block;position:absolute;left:-10000px;top:0';
+        var heightMm = clone.offsetHeight / 3.7795;
+        var fitMm = pageMm * 0.92;   // headroom for print font metrics / rounding
+        root.style.cssText = '';
+        clone.style.zoom = heightMm > fitMm ? (fitMm / heightMm).toFixed(3) : '';
+      }
+      document.getElementById('print-page-style').textContent =
+        '@media print { ' + (PAGE_RULES[paper] || PAGE_RULES['80mm']) + ' }';
+      document.body.classList.add('print-mode');
+      return true;
+    }
+    function printReceipt(id) {
+      if (preparePrint(id)) window.print();
+    }
+    // Ctrl+P on a page with a bill prints just the bill.
+    window.addEventListener('beforeprint', function () {
+      if (document.body.classList.contains('print-mode')) return;
+      var d = document.querySelector('[data-default-print]');
+      if (d) preparePrint(d.id);
+    });
+    window.addEventListener('afterprint', function () {
+      document.body.classList.remove('print-mode');
+      document.getElementById('print-root').innerHTML = '';
+    });
+
+    // Share a whole stock list on WhatsApp as a price-list image (SVG). Uses the
+    // Windows / phone share panel (pick WhatsApp there); if that isn't
+    // available, download the file and open WhatsApp so it can be attached.
+    function shareStockSheet(kind, btn, fmt) {
+      fmt = fmt || 'svg';
+      var label = btn ? btn.innerHTML : '';
+      if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Preparing…'; }
+      fetch('/stock/' + kind + '/export.' + fmt + location.search, { credentials: 'same-origin' })
+        .then(function (r) {
+          if (!r.ok) throw new Error('export failed');
+          var m = (r.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/);
+          return r.blob().then(function (b) { return new File([b], m ? m[1] : 'stock.' + fmt, { type: b.type }); });
+        })
+        .then(function (file) {
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            return navigator.share({ files: [file], title: file.name }).catch(function (e) {
+              if (e.name !== 'AbortError') downloadForWhatsApp(file);
+            });
+          }
+          downloadForWhatsApp(file);
+        })
+        .catch(function () { alert('Could not create the file. Please try again.'); })
+        .finally(function () { if (btn) { btn.disabled = false; btn.innerHTML = label; } });
+    }
+    // Excel: plain download of the current list (same search / filters).
+    function downloadStockExcel(kind) {
+      location.href = '/stock/' + kind + '/export.xlsx' + location.search;
+    }
+    function downloadForWhatsApp(file) {
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(file);
+      a.download = file.name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 10000);
+      alert('Saved "' + file.name + '" to your Downloads.\nWhatsApp will open now — attach this file in the chat (📎 → Document).');
+      window.open('https://web.whatsapp.com/', '_blank');
+    }
+
+    // Grid / List switch for stock pages (see web/_view_toggle.html). The
+    // choice is remembered per page; List is the default.
+    function setView(key, v) {
+      document.querySelectorAll('.view-switch[data-view-key="' + key + '"]').forEach(function (el) {
+        el.dataset.view = v;
+      });
+      document.querySelectorAll('.view-toggle[data-view-key="' + key + '"] button').forEach(function (b) {
+        b.classList.toggle('active', b.dataset.view === v);
+      });
+      try { localStorage.setItem('view:' + key, v); } catch (e) {}
+    }
+    document.querySelectorAll('.view-switch[data-view-key]').forEach(function (el) {
+      var v = 'list';
+      try { v = localStorage.getItem('view:' + el.dataset.viewKey) || 'list'; } catch (e) {}
+      setView(el.dataset.viewKey, v);
+    });
+  </script>
 </body>
 
 </html>

@@ -1,25 +1,19 @@
 {% extends "web/base.html" %}
 {% block content %}
-<div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:1rem">
+<div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem">
     <div>
-        <h1 class="page-title gradient-text">Transfers</h1>
-        <p class="page-subtitle">Stock transfers between branches</p>
+        <h1 class="page-title gradient-text">Send Stock Out</h1>
+        <p class="page-subtitle">Goods sent to another shop or person — stock is deducted automatically</p>
     </div>
-    <a href="{% url 'web:transfer_add' %}" class="btn btn-primary">+ Add Transfer</a>
+    <a href="{% url 'web:transfer_add' %}" class="btn btn-primary">+ Send Goods</a>
 </div>
 
 <div class="toolbar">
-    <form method="get" class="toolbar" style="gap:.75rem;margin:0;width:100%">
+    <form method="get" style="display:flex;gap:.75rem;flex:1">
         <div class="search-box">
             <span class="search-ico">🔍</span>
-            <input type="search" name="q" value="{{ q }}" placeholder="Search transfer #, branch…" />
+            <input type="search" name="q" value="{{ q }}" placeholder="Search recipient, place, item, IMEI…" />
         </div>
-        <select name="status" class="filter-select" onchange="this.form.submit()">
-            <option value="">All Statuses</option>
-            {% for val, label in statuses %}
-            <option value="{{ val }}" {% if status == val %}selected{% endif %}>{{ label }}</option>
-            {% endfor %}
-        </select>
         <button type="submit" class="btn btn-secondary">Search</button>
     </form>
 </div>
@@ -27,27 +21,36 @@
 <div class="table-card">
     <table class="table">
         <thead>
-            <tr><th>Transfer #</th><th>From</th><th>To</th><th>Status</th><th>Date</th></tr>
+            <tr>
+                <th>Transfer #</th>
+                <th>Date</th>
+                <th>Sent To</th>
+                <th>Destination</th>
+                <th>Items</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
         </thead>
         <tbody>
             {% for t in transfers %}
             <tr>
                 <td><strong>{{ t.transfer_number }}</strong></td>
-                <td>{{ t.from_branch.name|default:"—" }}</td>
-                <td>{{ t.to_branch.name|default:"—" }}</td>
-                <td>
-                    <span class="badge
-                        {% if t.status == 'received' %}badge-green
-                        {% elif t.status == 'dispatched' %}badge-orange
-                        {% elif t.status == 'cancelled' %}badge-red
-                        {% else %}badge-gray{% endif %}">
-                        {{ t.get_status_display }}
-                    </span>
-                </td>
                 <td>{{ t.created_at|date:"d M Y" }}</td>
+                <td>{{ t.recipient_name|default:"—" }}{% if t.recipient_phone %}<br><span style="font-size:.78rem;color:var(--text-muted)">{{ t.recipient_phone }}</span>{% endif %}</td>
+                <td>{{ t.destination|default:"—" }}</td>
+                <td style="font-size:.85rem">
+                    {% for i in t.items.all %}{{ i.item_name }} × {{ i.qty }}{% if not forloop.last %}<br>{% endif %}{% endfor %}
+                </td>
+                <td><span class="badge {% if t.status == 'cancelled' %}badge-gray{% else %}badge-green{% endif %}">
+                    {% if t.status == 'cancelled' %}Cancelled{% else %}Sent{% endif %}</span></td>
+                <td><a href="{% url 'web:transfer_detail' t.pk %}" class="btn btn-secondary" style="padding:.3rem .7rem;font-size:.8rem">View →</a></td>
             </tr>
             {% empty %}
-            <tr><td colspan="5" style="text-align:center;padding:3rem;color:var(--text-muted)">No transfers found.</td></tr>
+            <tr>
+                <td colspan="7" style="text-align:center;padding:3rem;color:var(--text-muted)">
+                    Nothing sent out yet. <a href="{% url 'web:transfer_add' %}" style="color:var(--brand-500);font-weight:700">Send goods</a>.
+                </td>
+            </tr>
             {% endfor %}
         </tbody>
     </table>

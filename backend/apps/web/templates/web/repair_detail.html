@@ -10,19 +10,22 @@
         <p class="page-subtitle">{{ job.customer_name }} · {{ job.device_model }}</p>
     </div>
     <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-        <button onclick="printToken()" class="btn btn-primary">🎫 Print Token</button>
+        <button onclick="printReceipt('repair-bill')" class="btn btn-primary">🖨 Print Bill</button>
+        <button onclick="printReceipt('repair-token')" class="btn btn-secondary">🎫 Print Token</button>
         <a href="{% url 'web:repairs' %}" class="btn btn-secondary">← Back</a>
     </div>
 </div>
 
-<!-- ══ JOB TOKEN — prints with printToken() ═════════════════════════════════ -->
+<!-- ══ JOB TOKEN — prints with printReceipt('repair-token') ═══════════════════ -->
 <div id="repair-token" style="display:none">
+    {% for copy in token_copies %}
     <div class="print-target"
-        style="width:300px;border:2px solid #333;padding:16px;font-family:'Courier New',monospace;font-size:11px;background:#fff">
+        style="width:72mm;box-sizing:border-box;border:2px solid #333;padding:16px;font-family:'Courier New',monospace;font-size:11px;background:#fff">
         <div style="text-align:center;border-bottom:2px dashed #333;padding-bottom:10px;margin-bottom:10px">
-            <div style="font-size:15px;font-weight:900;letter-spacing:.05em">MY PHONE</div>
+            <div style="font-size:15px;font-weight:900;letter-spacing:.05em">{{ company.name|default:"My Phone"|upper }}</div>
             <div style="font-size:10px;color:#666;margin-top:2px">REPAIR WORKSHOP</div>
         </div>
+        <div class="token-copy">{{ copy }}</div>
 
         <div style="margin-bottom:8px">
             <div style="font-size:13px;font-weight:900">JOB: {{ job.job_number }}</div>
@@ -43,6 +46,12 @@
             <div><strong>Fault:</strong></div>
             <div style="margin-top:3px;font-size:10px">{{ job.fault_description }}</div>
         </div>
+        {% if received %}
+        <div style="border-top:1px dashed #999;padding-top:8px;margin-top:8px">
+            <div><strong>Received with:</strong></div>
+            <div style="margin-top:3px;font-size:10px">{{ received|join:", " }}</div>
+        </div>
+        {% endif %}
 
         <div
             style="border-top:1px dashed #999;padding-top:8px;margin-top:8px;display:flex;justify-content:space-between">
@@ -55,7 +64,15 @@
             Please keep this token.<br>
             Collect your device with this slip.
         </div>
+        <div class="devnest-credit">Developed by Devnest</div>
     </div>
+    {% if not forloop.last %}<div class="token-cut">✂ - - - - - - cut here - - - - - -</div>{% endif %}
+    {% endfor %}
+</div>
+
+<!-- ══ REPAIR BILL — labour + parts; print only (printReceipt('repair-bill')) ══ -->
+<div id="repair-bill" style="display:none">
+    {% include "web/_receipt.html" %}
 </div>
 
 <!-- ══ SCREEN VIEW ══════════════════════════════════════════════════════════ -->
@@ -89,6 +106,13 @@
                 <div class="info-field"><span class="info-label">Received</span><span class="info-value">{{ job.created_at|date:"d M Y, g:i A" }}</span></div>
             </div>
 
+            {% if received %}
+            <p class="section-label">Received with device</p>
+            <div class="check-chips" style="margin-bottom:.5rem">
+                {% for a in received %}<span class="check-chip" style="cursor:default">✓ {{ a }}</span>{% endfor %}
+            </div>
+            {% endif %}
+
             <p class="section-label">Fault Description</p>
             <p style="font-size:.9375rem;color:var(--text-secondary);line-height:1.6">{{ job.fault_description }}</p>
 
@@ -98,70 +122,101 @@
             {% endif %}
         </div>
 
-        <!-- Parts Used -->
-        {% if job.parts.all %}
+        <!-- Parts Used — taken from stock and billed to the customer -->
         <div class="info-card">
             <h2
                 style="font-size:1rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:0 0 1rem">
-                Parts Used</h2>
-            <table class="table">
+                Parts Used from Stock</h2>
+            {% if job.parts.all %}
+            <table class="table" style="margin-bottom:1rem">
                 <thead>
                     <tr>
-                        <th>Part Name</th>
+                        <th>Part</th>
                         <th style="text-align:right">Qty</th>
-                        <th style="text-align:right">Cost</th>
+                        <th style="text-align:right">Price</th>
+                        <th style="text-align:right">Total</th>
+                        <th></th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for p in job.parts.all %}
                     <tr>
-                        <td>{{ p.name }}</td>
+                        <td>{{ p.name }}{% if p.sku %}<br><span style="font-size:.72rem;color:var(--text-muted)">{{ p.sku }}</span>{% endif %}</td>
                         <td style="text-align:right">{{ p.qty }}</td>
-                        <td style="text-align:right">Rs. {{ p.cost|floatformat:0 }}</td>
+                        <td style="text-align:right">Rs. {{ p.unit_price|floatformat:0 }}</td>
+                        <td style="text-align:right;font-weight:600">Rs. {{ p.line_total|floatformat:0 }}</td>
+                        <td style="text-align:right">
+                            <form method="post" action="{% url 'web:repair_part_remove' p.pk %}" style="margin:0"
+                                onsubmit="return confirm('Remove this part and return it to stock?')">
+                                {% csrf_token %}
+                                <button type="submit" title="Remove & return to stock"
+                                    style="background:none;border:none;cursor:pointer;color:#be123c;font-size:1rem">✕</button>
+                            </form>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
+            {% else %}
+            <p style="font-size:.875rem;color:var(--text-muted);margin:0 0 1rem">No parts used yet.</p>
+            {% endif %}
+
+            {% if spares or products %}
+            <form method="post" action="{% url 'web:repair_part_add' job.pk %}"
+                style="display:grid;grid-template-columns:1fr 80px 110px auto;gap:.5rem;align-items:end">
+                {% csrf_token %}
+                <div class="form-field">
+                    <label class="form-label">Part / product from stock</label>
+                    <input type="search" id="part-search" class="form-input" style="margin-bottom:.35rem"
+                        placeholder="🔍 Search by name, SKU or brand…" oninput="filterParts(this.value)"
+                        autocomplete="off" />
+                    <select name="item" id="part-item" class="form-select" required onchange="partPicked(this)">
+                        <option value="">— Select —</option>
+                        {% if spares %}
+                        <optgroup label="Spare Parts">
+                            {% for s in spares %}
+                            <option value="spare:{{ s.pk }}" data-price="{{ s.sell_price|floatformat:0 }}"
+                                data-search="{{ s.name }} {{ s.sku }} {{ s.brand_compat }} {{ s.model_compat }}">{{ s.name }} ({{ s.stock }} in stock)</option>
+                            {% endfor %}
+                        </optgroup>
+                        {% endif %}
+                        {% if products %}
+                        <optgroup label="Accessories / Products">
+                            {% for p in products %}
+                            <option value="product:{{ p.pk }}" data-price="{{ p.sell_price|floatformat:0 }}"
+                                data-search="{{ p.name }} {{ p.sku }} {{ p.brand }} {{ p.category }}">{{ p.name }} ({{ p.stock_qty }} in stock)</option>
+                            {% endfor %}
+                        </optgroup>
+                        {% endif %}
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label class="form-label">Qty</label>
+                    <input type="number" name="qty" class="form-input" min="1" step="1" value="1" required />
+                </div>
+                <div class="form-field">
+                    <label class="form-label">Price (Rs.)</label>
+                    <input type="number" name="unit_price" id="part-price" class="form-input" min="0" step="1" required />
+                </div>
+                <button type="submit" class="btn btn-primary">➕ Add</button>
+            </form>
+            <p style="font-size:.8rem;color:var(--text-muted);margin:.5rem 0 0">
+                Stock is deducted as soon as you add a part; removing it puts it back.
+            </p>
+            {% else %}
+            <p style="font-size:.85rem;color:var(--text-muted);margin:0">
+                No spare parts or accessories in stock. Add stock via
+                <a href="{% url 'web:procurement_add' %}" style="color:var(--brand-500)">New Purchase</a>.</p>
+            {% endif %}
         </div>
-        {% endif %}
-    </div>
 
-    <!-- Right column: costing + history -->
-    <div style="display:flex;flex-direction:column;gap:1rem">
-
-        <!-- Costing -->
-        <div class="info-card">
-            <h2
-                style="font-size:1rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:0 0 1rem">
-                Costing</h2>
-            <div style="display:flex;flex-direction:column;gap:.75rem">
-                <div class="stat-cell">
-                    <div class="stat-label">Estimated Cost</div>
-                    <div class="stat-value" style="font-size:1.3rem">Rs. {{ job.estimated_cost|floatformat:0 }}</div>
-                </div>
-                <div class="stat-cell">
-                    <div class="stat-label">Final Cost</div>
-                    <div class="stat-value" style="font-size:1.3rem;color:var(--brand-500)">Rs. {{ job.final_cost|floatformat:0 }}</div>
-                </div>
-                <div class="stat-cell">
-                    <div class="stat-label">Amount Paid</div>
-                    <div class="stat-value" style="font-size:1.3rem;color:#15803d">Rs. {{ job.amount_paid|floatformat:0 }}</div>
-                </div>
-                <div class="stat-cell">
-                    <div class="stat-label">Balance / Udhaar</div>
-                    <div class="stat-value" style="font-size:1.3rem;{% if job.balance > 0 %}color:#be123c{% else %}color:#15803d{% endif %}">
-                        Rs. {{ job.balance|floatformat:0 }}</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Manage / Complete Repair -->
+        <!-- Manage / Complete Repair — full width of the main column -->
         <div class="info-card">
             <h2 style="font-size:1rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:0 0 1rem">
                 Manage / Complete Repair</h2>
             <form method="post" action="{% url 'web:repair_update' job.pk %}">
                 {% csrf_token %}
-                <div class="form-grid-2">
+                <div class="manage-grid">
                     <div class="form-field">
                         <label class="form-label">Status</label>
                         <select name="status" class="form-select">
@@ -180,33 +235,87 @@
                         </select>
                     </div>
                     <div class="form-field">
-                        <label class="form-label">Final Cost (Rs.)</label>
-                        <input type="number" name="final_cost" class="form-input" min="0" step="1"
-                            value="{{ job.final_cost|floatformat:0 }}" />
+                        <label class="form-label">Labour Charge (Rs.)</label>
+                        <input type="number" name="labour_charge" class="form-input" min="0" step="1"
+                            value="{{ job.labour_charge|floatformat:0 }}" />
+                        <span class="field-hint">Parts are added automatically</span>
                     </div>
                     <div class="form-field">
-                        <label class="form-label">Amount Paid (Rs.) <small style="color:var(--text-muted)">— rest is udhaar</small></label>
+                        <label class="form-label">Amount Paid (Rs.)</label>
                         <input type="number" name="amount_paid" class="form-input" min="0" step="1"
                             value="{{ job.amount_paid|floatformat:0 }}" />
+                        <span class="field-hint">Rest is udhaar</span>
                     </div>
                 </div>
-                <div class="form-field" style="margin-top:.75rem">
-                    <label class="form-label">Diagnosis / Work Done</label>
-                    <textarea name="diagnosis" class="form-textarea" rows="2"
-                        placeholder="What was diagnosed / repaired">{{ job.diagnosis }}</textarea>
+                <div class="manage-grid" style="margin-top:.75rem">
+                    <div class="form-field">
+                        <label class="form-label">Other Repair Costs (Rs.)</label>
+                        <input type="number" name="extra_cost" class="form-input" min="0" step="1"
+                            value="{{ job.extra_cost|floatformat:0 }}" />
+                        <span class="field-hint">Outside work, courier… (not billed; reduces profit)</span>
+                    </div>
+                    <div class="form-field" style="grid-column:span 3">
+                        <label class="form-label">Received with device</label>
+                        <input type="hidden" name="accessories_present" value="1" />
+                        <div class="check-chips">
+                            {% for a in accessory_options %}
+                            <label class="check-chip"><input type="checkbox" name="accessories" value="{{ a }}" {% if a in received %}checked{% endif %} /> {{ a }}</label>
+                            {% empty %}<span class="field-hint">Add options in Settings → Dropdown Options.</span>
+                            {% endfor %}
+                        </div>
+                    </div>
                 </div>
-                <div class="form-field" style="margin-top:.75rem">
-                    <label class="form-label">Note <small style="color:var(--text-muted)">(added to status history)</small></label>
-                    <input type="text" name="note" class="form-input" placeholder="Optional note for this update" />
+                <div class="manage-grid-2" style="margin-top:.75rem">
+                    <div class="form-field">
+                        <label class="form-label">Diagnosis / Work Done</label>
+                        <textarea name="diagnosis" class="form-textarea" rows="2"
+                            placeholder="What was diagnosed / repaired">{{ job.diagnosis }}</textarea>
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">Note</label>
+                        <textarea name="note" class="form-textarea" rows="2"
+                            placeholder="Optional — added to status history"></textarea>
+                    </div>
                 </div>
-                <div class="form-actions" style="margin-top:1rem">
+                <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;margin-top:1rem">
                     <button type="submit" class="btn btn-primary">💾 Save Update</button>
+                    <p style="font-size:.8rem;color:var(--text-muted);margin:0;flex:1;min-width:220px">
+                        Tip: set status to <strong>Ready for Pickup</strong> when the repair is done &amp; OK,
+                        and <strong>Delivered</strong> once the customer collects it.
+                    </p>
                 </div>
             </form>
-            <p style="font-size:.8rem;color:var(--text-muted);margin:.75rem 0 0">
-                Tip: set status to <strong>Ready for Pickup</strong> when the repair is done &amp; OK,
-                and <strong>Delivered</strong> once the customer collects it.
-            </p>
+        </div>
+    </div>
+
+    <!-- Right column: costing + history -->
+    <div style="display:flex;flex-direction:column;gap:1rem">
+
+        <!-- Costing -->
+        <div class="info-card">
+            <h2
+                style="font-size:1rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:0 0 1rem">
+                Costing</h2>
+            <table class="cost-table">
+                <tr><td>Estimate given</td><td>Rs. {{ job.estimated_cost|floatformat:0 }}</td></tr>
+                <tr class="cost-head"><td colspan="2">Bill</td></tr>
+                <tr><td>Repair / labour</td><td>Rs. {{ job.labour_charge|floatformat:0 }}</td></tr>
+                {% for p in job.parts.all %}
+                <tr><td>{{ p.name }} <span class="cost-muted">× {{ p.qty }} @ {{ p.unit_price|floatformat:0 }}</span></td>
+                    <td>Rs. {{ p.line_total|floatformat:0 }}</td></tr>
+                {% endfor %}
+                <tr class="cost-total"><td>Total bill</td><td>Rs. {{ job.final_cost|floatformat:0 }}</td></tr>
+                <tr><td>Paid</td><td style="color:#15803d">Rs. {{ job.amount_paid|floatformat:0 }}</td></tr>
+                <tr><td><strong>Balance / Udhaar</strong></td>
+                    <td style="font-weight:800;{% if job.balance > 0 %}color:#be123c{% else %}color:#15803d{% endif %}">Rs. {{ job.balance|floatformat:0 }}</td></tr>
+                {% if request.user.is_superuser %}
+                <tr class="cost-head"><td colspan="2">Shop cost &amp; profit</td></tr>
+                <tr><td>Cost of parts</td><td>Rs. {{ parts_cost|floatformat:0 }}</td></tr>
+                <tr><td>Other repair costs</td><td>Rs. {{ job.extra_cost|floatformat:0 }}</td></tr>
+                <tr class="cost-total"><td>Repair profit</td>
+                    <td style="{% if repair_profit < 0 %}color:#be123c{% else %}color:#15803d{% endif %}">Rs. {{ repair_profit|floatformat:0 }}</td></tr>
+                {% endif %}
+            </table>
         </div>
 
         <!-- Status history -->
@@ -230,18 +339,12 @@
     </div>
 </div>
 
-<!-- Print script: show only token, hide everything else -->
+<!-- Parts picker helpers -->
 <script>
-    function printToken() {
-        var token = document.getElementById('repair-token');
-        var screen = document.querySelectorAll('.no-print');
-        token.style.display = 'block';
-        screen.forEach(function (el) { el.style.display = 'none'; });
-        window.print();
-        setTimeout(function () {
-            token.style.display = 'none';
-            screen.forEach(function (el) { el.style.display = ''; });
-        }, 500);
+    // Pre-fill the price with the item's selling price (editable).
+    function partPicked(sel) {
+        var opt = sel.options[sel.selectedIndex];
+        document.getElementById('part-price').value = opt ? (opt.dataset.price || '') : '';
     }
 </script>
 {% endblock %}

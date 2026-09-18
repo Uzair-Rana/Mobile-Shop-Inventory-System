@@ -44,6 +44,8 @@ class StockMovement(models.Model):
         ('transfer_in', 'Transfer In'),
         ('transfer_out', 'Transfer Out'),
         ('return', 'Return'),
+        ('repair_use', 'Used in Repair'),
+        ('repair_return', 'Returned from Repair'),
     ]
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='movements')
     type = models.CharField(max_length=30, choices=TYPES)
@@ -84,8 +86,10 @@ class Unit(models.Model):
     serial = models.CharField(max_length=100, blank=True)
     brand = models.CharField(max_length=100)
     model = models.CharField(max_length=200)
-    condition = models.CharField(max_length=20, choices=CONDITIONS, default='Grade A')
-    pta_status = models.CharField(max_length=20, choices=PTA, default='PTA Approved')
+    # Free text: options come from Settings → Dropdown Options (CONDITIONS / PTA
+    # above are only the initial defaults).
+    condition = models.CharField(max_length=50, default='Grade A')
+    pta_status = models.CharField(max_length=50, default='PTA Approved')
     cost_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     sell_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     lifecycle_state = models.CharField(max_length=20, choices=LIFECYCLE, default='in_stock')

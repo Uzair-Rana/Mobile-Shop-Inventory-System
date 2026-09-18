@@ -11,11 +11,16 @@ class Transfer(models.Model):
     ]
 
     transfer_number = models.CharField(max_length=30, unique=True)
+    # Single shop: stock is "sent out" to a person / shop at a destination.
+    # (Branch fields are legacy and optional.)
+    recipient_name = models.CharField(max_length=150, blank=True)
+    recipient_phone = models.CharField(max_length=30, blank=True)
+    destination = models.CharField(max_length=255, blank=True)
     from_branch = models.ForeignKey(
-        'branches.Branch', on_delete=models.PROTECT, related_name='transfers_out'
+        'branches.Branch', null=True, blank=True, on_delete=models.PROTECT, related_name='transfers_out'
     )
     to_branch = models.ForeignKey(
-        'branches.Branch', on_delete=models.PROTECT, related_name='transfers_in'
+        'branches.Branch', null=True, blank=True, on_delete=models.PROTECT, related_name='transfers_in'
     )
     status = models.CharField(max_length=20, choices=STATUS, default='draft')
     notes = models.TextField(blank=True)
@@ -53,7 +58,7 @@ class Transfer(models.Model):
 
 class TransferItem(models.Model):
     """One row per item (unit or product) in a transfer."""
-    ITEM_TYPES = [('unit', 'Device Unit'), ('product', 'Accessory/Product')]
+    ITEM_TYPES = [('unit', 'Device Unit'), ('product', 'Accessory/Product'), ('spare', 'Spare Part')]
 
     transfer = models.ForeignKey(Transfer, on_delete=models.CASCADE, related_name='items')
     item_type = models.CharField(max_length=10, choices=ITEM_TYPES)

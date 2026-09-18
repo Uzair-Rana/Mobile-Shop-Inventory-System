@@ -12,15 +12,22 @@
   --shadow-sm: 0 2px 6px rgba(17, 24, 39, .06), 0 1px 2px rgba(17, 24, 39, .04);
   --shadow: 0 8px 20px rgba(17, 24, 39, .09), 0 3px 6px rgba(17, 24, 39, .05);
   --shadow-lg: 0 16px 40px rgba(17, 24, 39, .14), 0 6px 14px rgba(17, 24, 39, .07);
-  --glow-brand: 0 10px 26px rgba(225, 29, 72, .30);
+  --glow-brand: 0 10px 26px rgba(var(--brand-rgb), .30);
   --glow-emerald: 0 10px 26px rgba(16, 185, 129, .28);
   --glow-amber: 0 10px 26px rgba(245, 158, 11, .28);
   --glow-violet: 0 10px 26px rgba(139, 92, 246, .28);
   --glow-blue: 0 10px 26px rgba(37, 99, 235, .28);
 
+  /* Brand palette — overridden per theme (html[data-theme]) below */
+  --brand-rgb: 225, 29, 72;
+  --brand-50: #fff1f2;
+  --brand-300: #fb7185;
   --brand-500: #e11d48;
   --brand-600: #be123c;
   --brand-700: #9f1239;
+  --sidebar-1: #1a0a0f;
+  --sidebar-2: #2d0d1a;
+  --sidebar-3: #1c1028;
   --accent-500: #1d4ed8;
   --c-rose-1: #fb7185;
   --c-rose-2: #e11d48;
@@ -62,7 +69,7 @@ body {
   color: var(--text-primary);
   background-color: #eef1f6;
   background-image:
-    radial-gradient(ellipse at 12% -5%, rgba(225, 29, 72, .10) 0%, transparent 45%),
+    radial-gradient(ellipse at 12% -5%, rgba(var(--brand-rgb), .10) 0%, transparent 45%),
     radial-gradient(ellipse at 95% 5%, rgba(124, 58, 237, .08) 0%, transparent 45%),
     radial-gradient(ellipse at 80% 100%, rgba(37, 99, 235, .07) 0%, transparent 50%),
     radial-gradient(ellipse at 15% 95%, rgba(16, 185, 129, .06) 0%, transparent 45%);
@@ -88,8 +95,8 @@ a {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  /* Rich deep crimson-navy gradient — matches brand colors */
-  background: linear-gradient(175deg, #1a0a0f 0%, #2d0d1a 40%, #1c1028 100%);
+  /* Deep gradient tinted to the active theme (--sidebar-1..3) */
+  background: linear-gradient(175deg, var(--sidebar-1) 0%, var(--sidebar-2) 40%, var(--sidebar-3) 100%);
   border-right: 1px solid rgba(255, 255, 255, .06);
 }
 
@@ -107,12 +114,12 @@ a {
   height: 40px;
   border-radius: 11px;
   flex-shrink: 0;
-  background: linear-gradient(135deg, #e11d48, #9f1239);
+  background: linear-gradient(135deg, var(--brand-500), var(--brand-700));
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 20px;
-  box-shadow: 0 2px 12px rgba(225, 29, 72, .5);
+  box-shadow: 0 2px 12px rgba(var(--brand-rgb), .5);
 }
 
 .brand-name {
@@ -126,7 +133,7 @@ a {
 .brand-sub {
   font-size: .6875rem;
   font-weight: 600;
-  color: #fb7185;
+  color: var(--brand-300);
   letter-spacing: .12em;
   text-transform: uppercase;
   margin-top: 3px;
@@ -167,19 +174,19 @@ a {
 }
 
 .tab.active {
-  background: rgba(225, 29, 72, .22);
+  background: rgba(var(--brand-rgb), .22);
   color: #fff;
-  box-shadow: inset 0 0 0 1px rgba(225, 29, 72, .4);
+  box-shadow: inset 0 0 0 1px rgba(var(--brand-rgb), .4);
 }
 
 .tab.accent {
-  color: #fb7185;
+  color: var(--brand-300);
 }
 
 .tab.accent.active {
-  background: linear-gradient(135deg, rgba(225, 29, 72, .35), rgba(190, 18, 60, .28));
+  background: linear-gradient(135deg, rgba(var(--brand-rgb), .35), rgba(var(--brand-rgb), .28));
   color: #fff;
-  box-shadow: inset 0 0 0 1px rgba(225, 29, 72, .5);
+  box-shadow: inset 0 0 0 1px rgba(var(--brand-rgb), .5);
 }
 
 .sidebar-user {
@@ -198,7 +205,7 @@ a {
   height: 34px;
   border-radius: 10px;
   flex-shrink: 0;
-  background: linear-gradient(135deg, #e11d48, #9f1239);
+  background: linear-gradient(135deg, var(--brand-500), var(--brand-700));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -338,7 +345,7 @@ a {
   width: 120px;
   height: 120px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(225, 29, 72, .12), transparent 70%);
+  background: radial-gradient(circle, rgba(var(--brand-rgb), .12), transparent 70%);
   pointer-events: none;
 }
 
@@ -498,7 +505,7 @@ a {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #e11d48, #be123c);
+  background: linear-gradient(135deg, var(--brand-500), var(--brand-600));
   color: #fff;
   box-shadow: var(--glow-brand);
 }
@@ -587,8 +594,8 @@ a {
 }
 
 .logout-btn:hover {
-  background: rgba(225, 29, 72, .2);
-  color: #fb7185;
+  background: rgba(var(--brand-rgb), .2);
+  color: var(--brand-300);
 }
 
 /* ── Toolbar / search bar ─────────────────────────────────────────────────── */
@@ -621,7 +628,7 @@ a {
 
 .search-box input:focus {
   border-color: var(--brand-500);
-  box-shadow: 0 0 0 3px rgba(225, 29, 72, .1);
+  box-shadow: 0 0 0 3px rgba(var(--brand-rgb), .1);
 }
 
 .search-ico {
@@ -700,9 +707,14 @@ a {
 /* ── Detail page ─────────────────────────────────────────────────────────── */
 .detail-grid {
   display: grid;
-  grid-template-columns: 1fr 360px;
+  /* minmax(0, …): long <select> options must not push the sidebar off screen */
+  grid-template-columns: minmax(0, 1fr) 360px;
   gap: 1.25rem;
   align-items: start;
+}
+
+.detail-grid > * {
+  min-width: 0;
 }
 
 @media (max-width: 860px) {
@@ -819,7 +831,7 @@ a {
 .form-select:focus,
 .form-textarea:focus {
   border-color: var(--brand-500);
-  box-shadow: 0 0 0 3px rgba(225, 29, 72, .1);
+  box-shadow: 0 0 0 3px rgba(var(--brand-rgb), .1);
 }
 
 .form-textarea {
@@ -1151,3 +1163,418 @@ a {
   font-size: .85rem;
   color: var(--text-muted);
 }
+/* ── Flash messages ──────────────────────────────────────────────────────── */
+.flash {
+  padding: .7rem 1rem;
+  border-radius: var(--radius);
+  margin-bottom: 1rem;
+  font-weight: 600;
+  font-size: .9rem;
+  border: 1px solid;
+}
+.flash-success { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
+.flash-error   { background: #fff1f2; color: #be123c; border-color: #fecdd3; }
+.flash-warning { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+.flash-info    { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+
+/* Small software credit at the bottom of printed invoices / bills / tokens */
+.devnest-credit {
+  text-align: center;
+  font-size: 8px;
+  color: #9ca3af;
+  margin-top: 8px;
+  letter-spacing: .04em;
+}
+
+/* Let form grid cells shrink inside narrow columns (e.g. the repair sidebar)
+   instead of long <select> options pushing the page sideways. */
+.form-grid-2 > * {
+  min-width: 0;
+}
+.form-grid-2 .form-select,
+.form-grid-2 .form-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* ── Repair: Manage / Complete Repair form ──────────────────────────────── */
+.manage-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .75rem;
+}
+.manage-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .75rem;
+}
+.manage-grid .form-select,
+.manage-grid .form-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+.field-hint {
+  display: block;
+  font-size: .72rem;
+  color: var(--text-muted);
+  margin-top: .2rem;
+}
+@media (max-width: 1100px) {
+  .manage-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .manage-grid, .manage-grid-2 { grid-template-columns: 1fr; }
+}
+
+/* ── Grid / List view switch (POS + stock pages) ─────────────────────────── */
+.view-toggle {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.view-toggle button {
+    border: none;
+    background: #fff;
+    padding: .45rem .7rem;
+    cursor: pointer;
+    font-size: .8rem;
+    font-weight: 700;
+    color: var(--text-muted);
+}
+
+.view-toggle button.active {
+    background: var(--brand-500);
+    color: #fff;
+}
+
+
+.view-switch[data-view="list"] [data-pane="grid"],
+.view-switch[data-view="grid"] [data-pane="list"] {
+  display: none;
+}
+
+/* Product cards used by the stock pages' Grid view */
+.stock-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: .875rem;
+}
+.stock-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: .875rem;
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+  min-width: 0;
+}
+.stock-card .sc-name {
+  font-weight: 700;
+  font-size: .925rem;
+  line-height: 1.3;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+.stock-card .sc-meta {
+  font-size: .75rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stock-card .sc-price {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--brand-500);
+  margin-top: .35rem;
+}
+.stock-card .sc-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  margin-top: .35rem;
+}
+.stock-card .sc-empty {
+  grid-column: 1 / -1;
+}
+
+
+/* ── Colour themes (Settings → Appearance) ───────────────────────────────── */
+/* Any element can carry data-theme (the <html> tag, or a swatch in Settings). */
+[data-theme="crimson"] {
+  --brand-rgb: 225, 29, 72;   --brand-50: #fff1f2; --brand-300: #fb7185;
+  --brand-500: #e11d48; --brand-600: #be123c; --brand-700: #9f1239;
+  --sidebar-1: #1a0a0f; --sidebar-2: #2d0d1a; --sidebar-3: #1c1028;
+}
+[data-theme="blue"] {
+  --brand-rgb: 37, 99, 235;   --brand-50: #eff6ff; --brand-300: #60a5fa;
+  --brand-500: #2563eb; --brand-600: #1d4ed8; --brand-700: #1e40af;
+  --sidebar-1: #0a0f1f; --sidebar-2: #0f1d3d; --sidebar-3: #111532;
+}
+[data-theme="emerald"] {
+  --brand-rgb: 5, 150, 105;   --brand-50: #ecfdf5; --brand-300: #34d399;
+  --brand-500: #059669; --brand-600: #047857; --brand-700: #065f46;
+  --sidebar-1: #06140f; --sidebar-2: #0b2a1f; --sidebar-3: #0d1a1c;
+}
+[data-theme="violet"] {
+  --brand-rgb: 124, 58, 237;  --brand-50: #f5f3ff; --brand-300: #a78bfa;
+  --brand-500: #7c3aed; --brand-600: #6d28d9; --brand-700: #5b21b6;
+  --sidebar-1: #110a1f; --sidebar-2: #22113d; --sidebar-3: #161032;
+}
+[data-theme="orange"] {
+  --brand-rgb: 234, 88, 12;   --brand-50: #fff7ed; --brand-300: #fdba74;
+  --brand-500: #ea580c; --brand-600: #c2410c; --brand-700: #9a3412;
+  --sidebar-1: #1a0e07; --sidebar-2: #33170a; --sidebar-3: #1f1214;
+}
+[data-theme="teal"] {
+  --brand-rgb: 13, 148, 136;  --brand-50: #f0fdfa; --brand-300: #5eead4;
+  --brand-500: #0d9488; --brand-600: #0f766e; --brand-700: #115e59;
+  --sidebar-1: #061414; --sidebar-2: #0b2a29; --sidebar-3: #0d1a20;
+}
+
+/* Theme picker swatches (Settings → Appearance) */
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .6rem;
+}
+.theme-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .4rem;
+  padding: .6rem .4rem;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  cursor: pointer;
+  font-size: .78rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+.theme-option:hover { border-color: var(--brand-300); }
+.theme-option.selected {
+  border-color: var(--brand-500);
+  box-shadow: 0 0 0 3px rgba(var(--brand-rgb), .18);
+}
+.theme-swatch {
+  width: 100%;
+  height: 28px;
+  border-radius: 7px;
+  background: linear-gradient(135deg, var(--brand-300), var(--brand-500) 55%, var(--brand-700));
+}
+
+/* ── Settings → Dropdown Options rows ────────────────────────────────────── */
+.option-rows {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+}
+.option-row {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) 96px 62px 62px auto auto;
+  gap: .4rem;
+  align-items: center;
+  margin: 0;
+}
+.option-row .form-input,
+.option-row .form-select {
+  padding: .3rem .5rem;
+  font-size: .85rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+.option-row .btn {
+  padding: .3rem .6rem;
+  font-size: .8rem;
+}
+.option-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  padding: 0;
+}
+.option-show {
+  display: flex;
+  align-items: center;
+  gap: .25rem;
+  font-size: .78rem;
+  color: var(--text-muted);
+}
+.option-del { color: #be123c; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RECEIPT — compact single-page bill (templates/web/_receipt.html)
+   Width follows Settings → Printing (80mm / 58mm thermal, A5, A4).
+   ═══════════════════════════════════════════════════════════════════════════ */
+.rc {
+  background: #fff;
+  color: #000;
+  margin: 0 auto;
+  font-family: 'Courier New', ui-monospace, monospace;
+  font-size: 11px;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+}
+.rc-80mm { width: 72mm; }
+.rc-58mm { width: 48mm; font-size: 9.5px; }
+.rc-a5   { width: 128mm; font-size: 12px; font-family: 'Inter', system-ui, sans-serif; }
+.rc-a4   { width: 180mm; font-size: 13px; font-family: 'Inter', system-ui, sans-serif; }
+
+.rc table { width: 100%; border-collapse: collapse; }
+.rc td, .rc th { padding: 1px 0; vertical-align: top; }
+.rc .n { text-align: right; white-space: nowrap; padding-left: 4px; }
+
+.rc-head { text-align: center; padding-bottom: 4px; border-bottom: 1px dashed #000; }
+.rc-logo { max-height: 42px; max-width: 60%; object-fit: contain; display: block; margin: 0 auto 3px; }
+.rc-shop { font-size: 1.35em; font-weight: 900; letter-spacing: .02em; }
+.rc-small { font-size: .85em; }
+.rc-title {
+  text-align: center;
+  font-weight: 900;
+  letter-spacing: .12em;
+  padding: 3px 0;
+  border-bottom: 1px dashed #000;
+}
+.rc-meta { margin: 3px 0; }
+.rc-meta td:first-child { white-space: nowrap; padding-right: 6px; }
+.rc-meta td:last-child { text-align: right; word-break: break-word; }
+
+.rc-items { border-top: 1px dashed #000; border-bottom: 1px dashed #000; }
+.rc-items thead th {
+  text-align: left;
+  font-weight: 800;
+  border-bottom: 1px dashed #000;
+  padding: 2px 0;
+}
+.rc-items thead th.n { text-align: right; }
+.rc-items tbody tr { break-inside: avoid; }
+.rc-sub { font-size: .82em; color: #333; word-break: break-all; }
+
+.rc-totals { margin-top: 3px; }
+.rc-grand td {
+  font-weight: 900;
+  font-size: 1.2em;
+  border-top: 1px solid #000;
+  border-bottom: 1px solid #000;
+  padding: 2px 0;
+}
+.rc-alert td { font-weight: 800; }
+
+.rc-foot {
+  text-align: center;
+  font-size: .9em;
+  margin-top: 5px;
+  padding-top: 4px;
+  border-top: 1px dashed #000;
+}
+.rc .devnest-credit { margin-top: 4px; }
+
+/* On screen the receipt sits on a light "paper" preview. */
+.receipt-preview {
+  background: #f3f4f6;
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  overflow-x: auto;
+}
+.receipt-preview .rc {
+  padding: 10px 8px;
+  box-shadow: var(--shadow);
+}
+
+/* Printing: printReceipt() copies one receipt into #print-root and adds
+   body.print-mode — then ONLY that receipt exists on the page, so it always
+   prints on a single page with no blank trailing pages. */
+#print-root { display: none; }
+@media print {
+  body.print-mode > *:not(#print-root) { display: none !important; }
+  body.print-mode #print-root { display: block !important; }
+  body.print-mode #print-root,
+  body.print-mode #print-root * { visibility: visible !important; }
+  body.print-mode { background: #fff !important; }
+  body.print-mode .rc { box-shadow: none; padding: 0; }
+}
+
+/* Two-copy tokens (customer + shop) */
+.token-copy {
+  text-align: center;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .15em;
+  border: 1px solid #333;
+  padding: 1px 0;
+  margin-bottom: 8px;
+}
+.token-cut {
+  width: 72mm;
+  text-align: center;
+  font-family: 'Courier New', monospace;
+  font-size: 10px;
+  color: #555;
+  padding: 6px 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* Bill disclaimer (Settings → Printing) — Urdu/Hindi need a real script font */
+.rc-disclaimer {
+  margin-top: 5px;
+  padding: 3px 2px;
+  border: 1px dashed #000;
+  text-align: center;
+  font-family: 'Segoe UI', 'Urdu Typesetting', 'Nirmala UI', Tahoma, sans-serif;
+  font-size: 1em;
+  line-height: 1.6;
+  font-weight: 600;
+}
+
+/* Checkbox chips (repair "received with device" checklist) */
+.check-chips { display: flex; flex-wrap: wrap; gap: .4rem; }
+.check-chip {
+  display: inline-flex; align-items: center; gap: .35rem;
+  padding: .3rem .65rem; border: 1px solid var(--border); border-radius: 99px;
+  background: #fff; font-size: .82rem; cursor: pointer;
+}
+.check-chip:has(input:checked) { border-color: var(--brand-500); background: var(--brand-50); }
+
+/* Repair costing card — itemised */
+.cost-table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+.cost-table td { padding: .35rem 0; border-bottom: 1px solid var(--border-light); vertical-align: top; }
+.cost-table td:last-child { text-align: right; white-space: nowrap; padding-left: .5rem; }
+.cost-table .cost-head td {
+  padding-top: .8rem; font-size: .72rem; font-weight: 800; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--text-muted); border-bottom: 1px solid var(--border);
+}
+.cost-table .cost-total td { font-weight: 800; font-size: .95rem; border-top: 2px solid var(--border); }
+.cost-muted { color: var(--text-muted); font-size: .78rem; }
+
+/* ⓘ Info dialog (developer / company details) */
+.info-dialog {
+  border: none;
+  border-radius: var(--radius-lg);
+  padding: 0;
+  box-shadow: var(--shadow-lg);
+  width: min(420px, 92vw);
+}
+.info-dialog::backdrop { background: rgba(17, 24, 39, .45); }
+.info-dialog-body { padding: 1.75rem; text-align: center; }
+.info-dialog-logo {
+  width: 64px; height: 64px; margin: 0 auto .75rem; border-radius: 16px;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 900; font-size: 1.4rem; color: #fff;
+  background: linear-gradient(135deg, var(--brand-500), var(--brand-700));
+}
+.info-dialog h2 { margin: 0; font-size: 1.3rem; }
+.info-dialog-tag { margin: .25rem 0 1rem; color: var(--text-muted); font-size: .85rem; }
+.info-dialog table { width: 100%; text-align: left; font-size: .875rem; margin-bottom: 1rem; }
+.info-dialog td { padding: .35rem 0; border-bottom: 1px solid var(--border-light); }
+.info-dialog td:first-child { color: var(--text-muted); width: 40%; }
+.info-dialog a { color: var(--brand-500); }
+.info-dialog-foot { font-size: .75rem; color: var(--text-muted); margin: 0 0 1rem; }
+button.logout-btn { border: none; background: none; cursor: pointer; padding: 0; }
+.logout-btn + .logout-btn { margin-left: .15rem; }

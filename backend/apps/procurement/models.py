@@ -58,6 +58,10 @@ class ProcurementItem(models.Model):
 
     # IMEI category only — one IMEI per line, comma/space/newline separated
     imeis       = models.TextField(blank=True)
+    pta_status  = models.CharField(max_length=50, blank=True)   # applied to every IMEI in the line
+    condition   = models.CharField(max_length=50, blank=True)
+    # Spare-part category for new spare parts (display, battery, flex…)
+    spare_category = models.CharField(max_length=30, blank=True)
 
     # ── Reversal tracking (set when stock is applied) ─────────────────────────
     linked_product = models.ForeignKey('inventory.Product', null=True, blank=True,

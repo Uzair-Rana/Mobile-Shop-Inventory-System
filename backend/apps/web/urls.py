@@ -18,6 +18,8 @@ urlpatterns = [
     path('pos/',          views.pos,          name='pos'),
     path('pos/add/',      views.pos_add,      name='pos_add'),
     path('pos/remove/',   views.pos_remove,   name='pos_remove'),
+    path('pos/update/',   views.pos_update,   name='pos_update'),
+    path('pos/add-imeis/', views.pos_add_imeis, name='pos_add_imeis'),
     path('pos/clear/',    views.pos_clear,    name='pos_clear'),
     path('pos/checkout/', views.pos_checkout, name='pos_checkout'),
 
@@ -29,14 +31,26 @@ urlpatterns = [
     path('finance/',       views.finance,        name='finance'),
     path('settings/',              views.settings_page, name='settings'),
     path('settings/company/',      views.company_save,  name='company_save'),
-    path('settings/backup/',       views.backup_download, name='backup_download'),
-    path('settings/restore/',      views.restore_backup,  name='restore_backup'),
+    path('settings/unlock/',       views.settings_unlock, name='settings_unlock'),
+    path('settings/lock/',         views.settings_lock,   name='settings_lock'),
+    path('settings/theme/',        views.theme_save,      name='theme_save'),
+    path('settings/access-key/',   views.settings_key_save, name='settings_key_save'),
+    path('settings/printing/',     views.printing_save,   name='printing_save'),
+    path('settings/options/',      views.option_save,     name='option_save'),
+    path('backup/',                views.backup_page,     name='backup'),
+    path('backup/download/',       views.backup_download, name='backup_download'),
+    path('backup/restore/',        views.restore_backup,  name='restore_backup'),
     path('settings/users/<int:pk>/edit/', views.user_edit, name='user_edit'),
+
+    # Stock — Excel export of any stock list (shared on WhatsApp)
+    path('stock/<str:kind>/export.xlsx', views.stock_export, name='stock_export'),
+    path('stock/<str:kind>/export.svg',  views.stock_export_svg, name='stock_export_svg'),
 
     # Stock — Devices
     path('stock/devices/',           views.devices,       name='devices'),
     path('stock/devices/add/',       views.device_add,    name='device_add'),
     path('stock/devices/<int:pk>/',  views.device_detail, name='device_detail'),
+    path('stock/devices/<int:pk>/update/', views.device_update, name='device_update'),
 
     # Stock — Accessories
     path('stock/accessories/',       views.accessories,    name='accessories'),
@@ -69,6 +83,8 @@ urlpatterns = [
     path('workshop/repairs/new/',        views.repair_new,    name='repair_new'),
     path('workshop/repairs/<int:pk>/',        views.repair_detail, name='repair_detail'),
     path('workshop/repairs/<int:pk>/update/', views.repair_update, name='repair_update'),
+    path('workshop/repairs/<int:pk>/parts/add/', views.repair_part_add, name='repair_part_add'),
+    path('workshop/repairs/parts/<int:part_id>/remove/', views.repair_part_remove, name='repair_part_remove'),
 
     # Procurement — stock-in entries (auto-updates stock)
     path('procurement/entries/',              views.procurement_list,   name='procurement_list'),
@@ -84,10 +100,15 @@ urlpatterns = [
     path('procurement/suppliers/add/',           views.supplier_add,    name='supplier_add'),
     path('procurement/suppliers/<int:pk>/',      views.supplier_detail, name='supplier_detail'),
     path('procurement/suppliers/<int:pk>/edit/', views.supplier_edit,   name='supplier_edit'),
-    path('procurement/transfers/',           views.transfers,         name='transfers'),
-    path('procurement/transfers/add/',       views.transfer_add,      name='transfer_add'),
+
+    # Send stock out (to another shop / person) — deducts stock
+    path('procurement/send-out/',                 views.transfers,       name='transfers'),
+    path('procurement/send-out/new/',             views.transfer_add,    name='transfer_add'),
+    path('procurement/send-out/<int:pk>/',        views.transfer_detail, name='transfer_detail'),
+    path('procurement/send-out/<int:pk>/cancel/', views.transfer_cancel, name='transfer_cancel'),
 
     # Finance
+    path('finance/profit/',       views.profit,      name='profit'),
     path('finance/expenses/',     views.expenses,    name='expenses'),
     path('finance/expenses/add/', views.expense_add, name='expense_add'),
 ]

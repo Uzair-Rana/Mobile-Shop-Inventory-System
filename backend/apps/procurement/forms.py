@@ -47,7 +47,8 @@ class ProcurementForm(forms.ModelForm):
 class ProcurementItemForm(forms.ModelForm):
     class Meta:
         model = ProcurementItem
-        fields = ['category', 'product', 'sku', 'brand', 'qty', 'unit_cost', 'sell_price', 'imeis']
+        fields = ['category', 'product', 'sku', 'brand', 'qty', 'unit_cost', 'sell_price', 'imeis',
+                  'pta_status', 'condition', 'spare_category']
         widgets = {
             'category':   forms.Select(attrs={'class': 'form-select cat-select'}),
             'product':    forms.TextInput(attrs={'class': 'form-input', 'placeholder': 'Name / model',
@@ -60,7 +61,20 @@ class ProcurementItemForm(forms.ModelForm):
             'sell_price': forms.NumberInput(attrs={'class': 'form-input', 'min': 0, 'step': '0.01'}),
             'imeis':      forms.Textarea(attrs={'class': 'form-textarea imei-field', 'rows': 2,
                                                 'placeholder': 'One IMEI per line (or comma separated)'}),
+            'pta_status': forms.Select(attrs={'class': 'form-select'}),
+            'condition':  forms.Select(attrs={'class': 'form-select'}),
+            'spare_category': forms.Select(attrs={'class': 'form-select'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # PTA / condition choices come from Settings → Dropdown Options.
+        from apps.settings_app.choices import options
+        for name, group in (('pta_status', 'pta_status'), ('condition', 'device_condition')):
+            current = getattr(self.instance, name, '') or None
+            self.fields[name].widget.choices = [(o, o) for o in options(group, include=current)]
+        from apps.spare_parts.models import SparePart
+        self.fields['spare_category'].widget.choices = SparePart.Category.choices
 
     def clean(self):
         data = super().clean()
@@ -82,6 +96,19 @@ class ProcurementItemForm(forms.ModelForm):
             # unique within this line
             if len(set(imeis)) != len(imeis):
                 self.add_error('imeis', 'Duplicate IMEIs in this line.')
+            # An IMEI already in stock can't be bought again (a sold phone can —
+            # that's a buy-back). On edit, this line's own IMEIs are fine.
+            from apps.inventory.models import Unit
+            own = set(self.instance.imei_list()) if self.instance.pk else set()
+            clash = (Unit.objects.filter(imei1__in=imeis, lifecycle_state='in_stock')
+                     .exclude(imei1__in=own).values_list('imei1', flat=True))
+            if clash:
+                self.add_error('imeis', 'Already in stock: ' + ', '.join(clash))
+            from apps.settings_app.choices import options
+            if not data.get('pta_status'):
+                data['pta_status'] = (options('pta_status') or ['PTA Approved'])[0]
+            if not data.get('condition'):
+                data['condition'] = (options('device_condition') or ['Grade A'])[0]
         else:
             if qty < 1:
                 self.add_error('qty', 'Quantity must be at least 1.')

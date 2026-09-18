@@ -26,7 +26,8 @@ class Invoice(models.Model):
     grand_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     amount_paid = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     balance_due = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    payment_method = models.CharField(max_length=20, choices=PAYMENT_METHODS, default='cash')
+    # Legacy keys (cash, card…) or an option label from Settings → Dropdown Options.
+    payment_method = models.CharField(max_length=50, choices=PAYMENT_METHODS, default='cash')
     notes = models.TextField(blank=True)
     void_reason = models.TextField(blank=True)
     voided_at = models.DateTimeField(null=True, blank=True)
@@ -70,6 +71,7 @@ class InvoiceLine(models.Model):
     discount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     line_total = models.DecimalField(max_digits=12, decimal_places=2)
     returned_qty = models.IntegerField(default=0)  # units of this line returned to stock
+    cost_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)  # per unit, at time of sale
 
     def save(self, *args, **kwargs):
         self.line_total = (self.unit_price * self.qty) - self.discount

@@ -32,18 +32,18 @@ SECTIONS = {
     },
     'procurement': {
         'key': 'procurement', 'label': 'Procurement', 'icon': 'truck', 'url_name': 'web:procurement',
-        'description': 'Procurement, purchases, suppliers & transfers',
+        'description': 'Purchases, suppliers & sending stock out',
         'items': [
-            {'label': 'Procurement', 'url_name': 'web:procurement_list', 'icon': 'truck',   'desc': 'Add stock via supplier procurement'},
-            {'label': 'Purchases', 'url_name': 'web:purchases', 'icon': 'receipt',  'desc': 'Purchase orders'},
+            {'label': 'Purchases', 'url_name': 'web:procurement_list', 'icon': 'truck', 'desc': 'Buy phones, accessories & parts from a seller — stock updates automatically'},
             {'label': 'Suppliers', 'url_name': 'web:suppliers', 'icon': 'building', 'desc': 'Supplier directory'},
-            {'label': 'Transfers', 'url_name': 'web:transfers', 'icon': 'transfer', 'desc': 'Stock transfers'},
+            {'label': 'Send Stock Out', 'url_name': 'web:transfers', 'icon': 'transfer', 'desc': 'Send goods to another shop / person — stock is deducted'},
         ],
     },
     'finance': {
         'key': 'finance', 'label': 'Finance', 'icon': 'cash', 'url_name': 'web:finance',
-        'description': 'Cash sessions & expenses',
+        'description': 'Profit & loss, cash & expenses',
         'items': [
+            {'label': 'Profit & Loss', 'url_name': 'web:profit', 'icon': 'cash', 'desc': 'Real profit from sales & repairs, minus expenses'},
             {'label': 'Expenses', 'url_name': 'web:expenses', 'icon': 'expense', 'desc': 'Record & approve expenses'},
         ],
     },
@@ -59,4 +59,5 @@ TABS = [
     {'label': 'Procurement',   'url_name': 'web:procurement', 'icon': 'truck', 'match': 'procurement'},
     {'label': 'Finance',       'url_name': 'web:finance',   'icon': 'cash',    'match': 'finance'},
     {'label': 'Settings',      'url_name': 'web:settings',  'icon': 'cog',     'match': 'settings'},
+    {'label': 'Backup & Restore', 'url_name': 'web:backup', 'icon': 'backup',  'match': 'backup'},
 ]

@@ -1,0 +1,53 @@
+{% extends "web/base.html" %}
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title gradient-text">Backup &amp; Restore</h1>
+    <p class="page-subtitle">Keep a copy of all your records safe — and bring them back if needed</p>
+</div>
+
+{% if restored %}
+<div class="flash flash-success">✅ Backup restored successfully. You may need to sign in again.</div>
+{% endif %}
+{% if restore_error %}
+<div class="flash flash-error">⚠ {{ restore_error }}</div>
+{% endif %}
+
+{% if can_edit %}
+<div class="manage-grid-2">
+    <div class="info-card">
+        <h2 style="font-size:1rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:0 0 1rem">
+            💾 Backup</h2>
+        <p style="font-size:.875rem;color:var(--text-secondary);margin:0 0 1rem;line-height:1.6">
+            Download a full backup — the database with all sales, stock, repairs and customers,
+            plus uploaded files like your logo. Plug in a USB drive and save the
+            downloaded <code>.zip</code> to it.
+        </p>
+        <a href="{% url 'web:backup_download' %}" class="btn btn-primary">💾 Download Backup (.zip)</a>
+        <p style="font-size:.78rem;color:var(--text-muted);margin:1rem 0 0">
+            Tip: take a backup at the end of every day and keep the last few.
+        </p>
+    </div>
+
+    <div class="info-card">
+        <h2 style="font-size:1rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:0 0 1rem">
+            ♻ Restore</h2>
+        <p style="font-size:.875rem;color:#be123c;margin:0 0 1rem;line-height:1.6">
+            Uploading a backup <strong>replaces all current records</strong> with the ones in the backup.
+            Take a fresh backup first if you might need today's data.
+        </p>
+        <form method="post" action="{% url 'web:restore_backup' %}" enctype="multipart/form-data"
+            onsubmit="return confirm('This will REPLACE all current records with the backup. This cannot be undone. Continue?')">
+            {% csrf_token %}
+            <input type="file" name="backup" accept=".zip" required class="form-input"
+                style="padding:.3rem;margin-bottom:.75rem" />
+            <button type="submit" class="btn"
+                style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5">♻ Restore from Backup</button>
+        </form>
+    </div>
+</div>
+{% else %}
+<div class="info-card">
+    <p style="margin:0;color:var(--text-muted)">Only the shop owner can take or restore backups.</p>
+</div>
+{% endif %}
+{% endblock %}

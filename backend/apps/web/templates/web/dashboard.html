@@ -23,7 +23,7 @@
 <div class="kpi-grid" style="margin-bottom:1.5rem">
   {% for k in kpis %}
   {% if k.url %}
-  <a href="{% url k.url %}" class="stat-cell" style="text-decoration:none;display:block;position:relative">
+  <a href="{% url k.url %}{{ k.query|default:'' }}" class="stat-cell" style="text-decoration:none;display:block;position:relative">
     <div class="stat-label">{{ k.label }} →</div>
     <div class="stat-value">{{ k.value }}</div>
   </a>

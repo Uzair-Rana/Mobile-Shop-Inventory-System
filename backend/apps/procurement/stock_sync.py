@@ -35,21 +35,30 @@ def apply_item(item, actor=None):
 
     if cat == 'imei':
         from apps.inventory.models import Unit
+        details = dict(brand=item.brand or '', model=item.product,
+                       pta_status=item.pta_status or 'PTA Approved',
+                       condition=item.condition or 'Grade A',
+                       cost_price=item.unit_cost or 0, sell_price=item.sell_price or 0)
         for imei in item.imei_list():
-            if Unit.objects.filter(imei1=imei).exists():
-                continue  # never duplicate an active IMEI
-            Unit.objects.create(
-                imei1=imei, brand=item.brand or '', model=item.product,
-                cost_price=item.unit_cost or 0, sell_price=item.sell_price or 0,
-                lifecycle_state='in_stock', added_by=actor,
-            )
+            unit = Unit.objects.filter(imei1=imei).first()
+            if unit is None:
+                Unit.objects.create(imei1=imei, lifecycle_state='in_stock', added_by=actor, **details)
+            elif unit.lifecycle_state != 'in_stock':
+                # Buy-back / re-stock of a phone sold (or returned) earlier:
+                # the same IMEI comes back into stock with the new details.
+                for k, v in details.items():
+                    setattr(unit, k, v)
+                unit.lifecycle_state = 'in_stock'
+                unit.save()
+            # already in stock → the form rejects this, nothing to add
 
     elif cat in ('accessory', 'product'):
         from apps.inventory.models import Product, StockMovement
-        prod = None
+        # A typed SKU is authoritative (never fall back to a same-named item
+        # with a different SKU); without a SKU, match by name.
         if item.sku:
-            prod = Product.objects.filter(sku=item.sku).first()
-        if not prod:
+            prod = Product.objects.filter(sku__iexact=item.sku).first()
+        else:
             prod = Product.objects.filter(name__iexact=item.product).first()
         if prod:
             prod.stock_qty = (prod.stock_qty or 0) + item.qty
@@ -76,15 +85,16 @@ def apply_item(item, actor=None):
 
     elif cat == 'spare_part':
         from apps.spare_parts.models import SparePart, SparePartLedger
-        part = None
         if item.sku:
-            part = SparePart.objects.filter(sku=item.sku).first()
-        if not part:
+            part = SparePart.objects.filter(sku__iexact=item.sku).first()
+        else:
             part = SparePart.objects.filter(name__iexact=item.product).first()
         if not part:
+            valid = dict(SparePart.Category.choices)
             part = SparePart.objects.create(
                 sku=item.sku or _unique_sku(SparePart, item.product),
-                name=item.product, category='display_panel',
+                name=item.product,
+                category=item.spare_category if item.spare_category in valid else 'display_panel',
                 brand_compat=item.brand or '',
                 cost_price=item.unit_cost or 0, sell_price=item.sell_price or 0,
                 created_by=actor,
@@ -110,14 +120,24 @@ def reverse_item(item, actor=None):
 
     if cat == 'imei':
         from apps.inventory.models import Unit
-        # Only remove units still in stock (not ones already sold/transferred).
-        Unit.objects.filter(imei1__in=item.imei_list(), lifecycle_state='in_stock').delete()
+        from apps.sales.models import InvoiceLine
+        # Only units still in stock are taken back (sold ones stay sold). A unit
+        # with sales history (a buy-back) goes back to "sold" instead of being
+        # deleted, so its old invoices still point at it.
+        for unit in Unit.objects.filter(imei1__in=item.imei_list(), lifecycle_state='in_stock'):
+            if InvoiceLine.objects.filter(product_type='unit', product_id=unit.pk).exists():
+                unit.lifecycle_state = 'sold'
+                unit.save(update_fields=['lifecycle_state', 'updated_at'])
+            else:
+                unit.delete()
 
     elif cat in ('accessory', 'product'):
         if item.linked_product_id:
             from apps.inventory.models import StockMovement
             prod = item.linked_product
-            prod.stock_qty = max(0, (prod.stock_qty or 0) - item.qty)
+            # May go below zero here; check_no_negative_stock() then rejects the
+            # whole edit/delete if items from this purchase were already sold.
+            prod.stock_qty = (prod.stock_qty or 0) - item.qty
             prod.save(update_fields=['stock_qty', 'updated_at'])
             StockMovement.objects.create(
                 product=prod, type='adjustment_out', qty_change=-item.qty, actor=actor,
@@ -151,3 +171,30 @@ def apply_procurement(procurement, actor=None):
 def reverse_procurement(procurement, actor=None):
     for item in procurement.items.all():
         reverse_item(item, actor)
+
+
+class StockConflict(Exception):
+    """Raised when an edit/delete would remove stock that was already sold."""
+
+
+def affected_stock(procurement):
+    """Product / spare-part ids a procurement touches (take before edits)."""
+    items = list(procurement.items.all())
+    return ({i.linked_product_id for i in items if i.linked_product_id},
+            {i.linked_spare_id for i in items if i.linked_spare_id})
+
+
+def check_no_negative_stock(product_ids, spare_ids):
+    """Call after reversing / re-applying inside the same transaction; raises
+    StockConflict so the caller can roll the whole change back."""
+    from apps.inventory.models import Product
+    from apps.spare_parts.models import SparePart
+    from django.db.models import Sum
+    problems = [f'{p.name}: {-p.stock_qty} already sold'
+                for p in Product.objects.filter(pk__in=product_ids, stock_qty__lt=0)]
+    for part in SparePart.objects.filter(pk__in=spare_ids):
+        bal = part.ledger.aggregate(t=Sum('qty'))['t'] or 0
+        if bal < 0:
+            problems.append(f'{part.name}: {-bal} already used/sold')
+    if problems:
+        raise StockConflict('; '.join(problems))
