@@ -1,0 +1,121 @@
+{% extends "web/base.html" %}
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title gradient-text">Spare Parts Catalog</h1>
+    <p class="page-subtitle">Hardware components — full ledger-based stock tracking</p>
+</div>
+
+<!-- Category pills -->
+<div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem">
+    <a href="?q={{ q }}" class="badge {% if not active_cat %}badge-blue{% else %}badge-gray{% endif %}"
+        style="padding:.35rem .75rem;font-size:.8rem;cursor:pointer;text-decoration:none">All</a>
+    {% for val, label in categories %}
+    <a href="?category={{ val }}&q={{ q }}"
+        class="badge {% if active_cat == val %}badge-blue{% else %}badge-gray{% endif %}"
+        style="padding:.35rem .75rem;font-size:.8rem;cursor:pointer;text-decoration:none">
+        {{ label }}
+    </a>
+    {% endfor %}
+</div>
+
+<!-- Search -->
+<div class="toolbar">
+    <form method="get" style="display:flex;gap:.75rem;flex:1">
+        {% if active_cat %}<input type="hidden" name="category" value="{{ active_cat }}" />{% endif %}
+        <div class="search-box">
+            <span class="search-ico">🔍</span>
+            <input type="search" name="q" value="{{ q }}" placeholder="Search SKU, name, brand, model…" />
+        </div>
+        <button type="submit" class="btn btn-secondary">Search</button>
+    </form>
+    <button type="button" onclick="waShareAll()" class="btn"
+        style="background:#25D366;color:#fff;border:none">📲 Share All on WhatsApp</button>
+</div>
+
+<div class="table-card">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>SKU</th>
+                <th>Name</th>
+                <th>Category</th>
+                <th>Compatible</th>
+                <th>Attributes</th>
+                <th style="text-align:right">Stock</th>
+                <th style="text-align:right">Cost</th>
+                <th style="text-align:right">Sell</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in parts %}
+            <tr>
+                <td><code style="font-size:.8125rem">{{ p.sku }}</code></td>
+                <td>
+                    <a href="{% url 'web:spare_part_detail' p.pk %}"
+                        style="font-weight:600;color:var(--brand-500);text-decoration:none">
+                        {{ p.name }}
+                    </a>
+                </td>
+                <td><span class="badge badge-blue" style="font-size:.7rem">{{ p.get_category_display }}</span></td>
+                <td style="color:var(--text-muted);font-size:.875rem">
+                    {{ p.brand_compat|default:"—" }}{% if p.model_compat %} · {{ p.model_compat }}{% endif %}
+                </td>
+                <td style="font-size:.8125rem;color:var(--text-muted)">
+                    {% if p.display_type != "N/A" %}{{ p.display_type }} {% endif %}
+                    {% if p.with_frame %}+ Frame {% endif %}
+                    {% if p.battery_capacity %}{{ p.battery_capacity }} mAh {% endif %}
+                    {% if p.camera_position != "N/A" %}{{ p.get_camera_position_display }}{% endif %}
+                </td>
+                <td style="text-align:right">
+                    <span class="{% if p.stock_level <= p.reorder_level %}stock-low{% else %}stock-ok{% endif %}">
+                        {{ p.stock_level }}
+                    </span>
+                    {% if p.stock_level <= p.reorder_level %}<span style="font-size:.7rem;color:#be123c"> ⚠</span>{% endif %}
+                </td>
+                <td style="text-align:right">Rs. {{ p.cost_price|floatformat:0 }}</td>
+                <td style="text-align:right">Rs. {{ p.sell_price|floatformat:0 }}</td>
+                <td style="display:flex;gap:.35rem;align-items:center">
+                    <a href="{% url 'web:spare_part_detail' p.pk %}" class="btn btn-secondary"
+                        style="padding:.3rem .7rem;font-size:.8rem">Ledger →</a>
+                    <button type="button" onclick="waShareOne({{ forloop.counter0 }})" title="Share on WhatsApp"
+                        style="background:#25D366;color:#fff;border:none;border-radius:6px;padding:.3rem .55rem;cursor:pointer;font-size:.85rem">📲</button>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="9" style="text-align:center;padding:3rem;color:var(--text-muted)">
+                    No spare parts found.
+                    {% if not active_cat %}Add parts via <a href="{% url 'web:procurement_add' %}"
+                        style="color:var(--brand-500);font-weight:700">New Procurement</a> and select category
+                    <em>Spare Parts</em>.{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+    var SHOP = "{{ site_company.name|default:'My Phone'|escapejs }}";
+    var PRODUCTS = [
+        {% for p in parts %}
+        { name: "{{ p.name|escapejs }}", brand: "{{ p.brand_compat|escapejs }}", sku: "{{ p.sku|escapejs }}", price: "{{ p.sell_price|floatformat:0 }}" }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ];
+    function waOpen(t) { window.open('https://wa.me/?text=' + encodeURIComponent(t), '_blank'); }
+    function waShareOne(i) {
+        var p = PRODUCTS[i];
+        var t = '*' + SHOP + '*\n\n' + p.name + (p.sku ? ' [' + p.sku + ']' : '');
+        if (p.brand) t += '\nBrand: ' + p.brand;
+        t += '\nPrice: Rs. ' + p.price;
+        waOpen(t);
+    }
+    function waShareAll() {
+        if (!PRODUCTS.length) { alert('No parts to share.'); return; }
+        var lines = ['*' + SHOP + '* — Spare Parts', ''];
+        PRODUCTS.forEach(function (p) { lines.push('• ' + p.name + (p.brand ? ' (' + p.brand + ')' : '') + ' — Rs. ' + p.price); });
+        waOpen(lines.join('\n'));
+    }
+</script>
+{% endblock %}

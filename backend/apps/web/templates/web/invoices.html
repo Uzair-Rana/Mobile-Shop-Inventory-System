@@ -1,0 +1,66 @@
+{% extends "web/base.html" %}
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title gradient-text">Invoices</h1>
+    <p class="page-subtitle">Sales invoices &amp; history</p>
+</div>
+
+<div class="toolbar">
+    <form method="get" class="toolbar" style="gap:.75rem;margin:0;width:100%">
+        <div class="search-box">
+            <span class="search-ico">🔍</span>
+            <input type="search" name="q" value="{{ q }}" placeholder="Search invoice # or customer…" />
+        </div>
+        <select name="status" class="filter-select" onchange="this.form.submit()">
+            <option value="">All Statuses</option>
+            {% for val, label in statuses %}
+            <option value="{{ val }}" {% if status == val %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-secondary">Filter</button>
+    </form>
+</div>
+
+<div class="table-card">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Invoice #</th>
+                <th>Customer</th>
+                <th>Date</th>
+                <th>Status</th>
+                <th style="text-align:right">Total</th>
+                <th style="text-align:right">Paid</th>
+                <th style="text-align:right">Balance</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for inv in invoices %}
+            <tr>
+                <td><strong>{{ inv.invoice_number }}</strong></td>
+                <td>{{ inv.customer_name|default:"Walk-in" }}</td>
+                <td>{{ inv.created_at|date:"d M Y" }}</td>
+                <td>
+                    <span class="badge
+                        {% if inv.status == 'paid' %}badge-green
+                        {% elif inv.status == 'finalized' %}badge-blue
+                        {% elif inv.status == 'partially_paid' %}badge-orange
+                        {% elif inv.status == 'voided' %}badge-red
+                        {% elif inv.status == 'returned' %}badge-yellow
+                        {% else %}badge-gray{% endif %}">
+                        {{ inv.get_status_display }}
+                    </span>
+                </td>
+                <td style="text-align:right">Rs. {{ inv.grand_total|floatformat:0 }}</td>
+                <td style="text-align:right">Rs. {{ inv.amount_paid|floatformat:0 }}</td>
+                <td style="text-align:right">Rs. {{ inv.balance_due|floatformat:0 }}</td>
+                <td><a href="{% url 'web:invoice_detail' inv.pk %}" class="btn btn-secondary" style="padding:.3rem .7rem;font-size:.8rem">View →</a></td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="8" style="text-align:center;padding:3rem;color:var(--text-muted)">No invoices found.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

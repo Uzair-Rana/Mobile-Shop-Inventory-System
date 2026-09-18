@@ -1,0 +1,89 @@
+{% extends "web/base.html" %}
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title gradient-text">IMEI Devices</h1>
+    <p class="page-subtitle">{{ total }} serialised phone units</p>
+</div>
+
+<div class="toolbar">
+    <form method="get" class="toolbar" style="gap:.75rem;margin:0;width:100%">
+        <div class="search-box">
+            <span class="search-ico">🔍</span>
+            <input type="search" name="q" value="{{ q }}" placeholder="Search IMEI, brand, model…" />
+        </div>
+        <select name="state" class="filter-select" onchange="this.form.submit()">
+            <option value="">All States</option>
+            {% for val, label in states %}
+            <option value="{{ val }}" {% if state == val %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-secondary">Filter</button>
+    </form>
+    <a href="{% url 'web:procurement_add' %}" class="btn btn-primary">+ Add via Procurement</a>
+</div>
+
+<div class="info-card" style="margin-bottom:1rem;background:#fff7ed;border-left:3px solid #f97316;padding:.75rem 1rem">
+    <p style="margin:0;font-size:.875rem;color:#9a3412">
+        <strong>Devices are added through Procurement only.</strong>
+        Go to <a href="{% url 'web:procurement_add' %}" style="color:#c2410c;font-weight:700">New Procurement</a>
+        and select category <em>IMEI Devices</em>. Enter one IMEI per line — each becomes a separate stock unit.
+    </p>
+</div>
+
+<div class="table-card">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>IMEI 1</th>
+                <th>Brand / Model</th>
+                <th>Condition</th>
+                <th>PTA</th>
+                <th>State</th>
+                <th style="text-align:right">Cost</th>
+                <th style="text-align:right">Sell Price</th>
+                <th>Branch</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for u in units %}
+            <tr>
+                <td><code style="font-size:.8125rem">{{ u.imei1 }}</code></td>
+                <td><strong>{{ u.brand }}</strong> {{ u.model }}</td>
+                <td>{{ u.condition }}</td>
+                <td>
+                    <span class="badge
+                        {% if u.pta_status == 'PTA Approved' %}badge-green
+                        {% elif u.pta_status == 'PTA Blocked' %}badge-red
+                        {% else %}badge-yellow{% endif %}">
+                        {{ u.pta_status }}
+                    </span>
+                </td>
+                <td>
+                    <span class="badge
+                        {% if u.lifecycle_state == 'in_stock' %}badge-green
+                        {% elif u.lifecycle_state == 'sold' %}badge-gray
+                        {% elif u.lifecycle_state == 'defective' %}badge-red
+                        {% elif u.lifecycle_state == 'in_repair' %}badge-orange
+                        {% else %}badge-blue{% endif %}">
+                        {{ u.get_lifecycle_state_display }}
+                    </span>
+                </td>
+                <td style="text-align:right">Rs. {{ u.cost_price|floatformat:0 }}</td>
+                <td style="text-align:right">Rs. {{ u.sell_price|floatformat:0 }}</td>
+                <td>{{ u.branch.name|default:"—" }}</td>
+                <td><a href="{% url 'web:device_detail' u.pk %}" class="btn btn-secondary"
+                        style="padding:.3rem .7rem;font-size:.8rem">View →</a></td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="9" style="text-align:center;padding:3rem;color:var(--text-muted)">
+                    No devices found — add them via
+                    <a href="{% url 'web:procurement_add' %}" style="color:var(--brand)">Procurement</a>.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "web/base.html" %}
+{% block content %}
+<div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem">
+    <div>
+        <h1 class="page-title gradient-text">{{ cust.name }}</h1>
+        <p class="page-subtitle">{{ cust.phone|default:"No phone" }}</p>
+    </div>
+    <a href="{% url 'web:customers' %}" class="btn btn-secondary">← Back to Customers</a>
+</div>
+
+<div class="detail-grid">
+    <div style="display:flex;flex-direction:column;gap:1rem">
+        <div class="info-card">
+            <h2 style="font-size:1rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:0 0 1rem">Recent Invoices</h2>
+            <table class="table">
+                <thead><tr><th>Invoice #</th><th>Date</th><th>Status</th><th style="text-align:right">Total</th></tr></thead>
+                <tbody>
+                    {% for inv in invoices %}
+                    <tr>
+                        <td><a href="{% url 'web:invoice_detail' inv.pk %}" style="color:var(--brand-500);font-weight:600">{{ inv.invoice_number }}</a></td>
+                        <td>{{ inv.created_at|date:"d M Y" }}</td>
+                        <td>{{ inv.get_status_display }}</td>
+                        <td style="text-align:right">Rs. {{ inv.grand_total|floatformat:0 }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="4" style="text-align:center;padding:2rem;color:var(--text-muted)">No invoices yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:1rem">
+        <div class="info-card">
+            <h2 style="font-size:1rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:0 0 1rem">Details</h2>
+            <div class="info-row">
+                <div class="info-field"><span class="info-label">Phone</span><span class="info-value">{{ cust.phone|default:"—" }}</span></div>
+                <div class="info-field"><span class="info-label">Email</span><span class="info-value">{{ cust.email|default:"—" }}</span></div>
+                <div class="info-field"><span class="info-label">CNIC</span><span class="info-value">{{ cust.cnic|default:"—" }}</span></div>
+                <div class="info-field"><span class="info-label">Address</span><span class="info-value">{{ cust.address|default:"—" }}</span></div>
+                <div class="info-field"><span class="info-label">Balance</span><span class="info-value" style="font-weight:800;color:var(--brand-500)">Rs. {{ cust.balance|floatformat:0 }}</span></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

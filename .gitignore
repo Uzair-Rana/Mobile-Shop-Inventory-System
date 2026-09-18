@@ -1,41 +1,35 @@
 # Logs
 logs
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
 
-node_modules
 .DS_Store
-dist
-dist-ssr
-coverage
-*.local
-.env.local
-.env.*.local
 
 # Editor directories and files
 .vscode/*
-!.vscode/extensions.json
 .idea
 *.suo
-*.ntvs*
-*.njsproj
-*.sln
 *.sw?
 
-*.tsbuildinfo
+# Environment
+.env
+.env.*
 
-.eslintcache
+# Python / Django
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+backend/.activation
+backend/*.sqlite3
+backend/media/
+backend/staticfiles/
+backend/.pytest_cache/
+backend/htmlcov/
+backend/.coverage
 
-# Cypress
-/cypress/videos/
-/cypress/screenshots/
-
-# Vitest
-__screenshots__/
-
-# Vite
-*.timestamp-*-*.mjs
+# Packaging output
+backend/build/
+backend/dist/
+backend/*.spec.bak
+dist_installer/

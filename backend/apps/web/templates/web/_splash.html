@@ -1,0 +1,66 @@
+{% load static %}
+<div id="devnest-splash">
+    <img class="dn-logo"
+        src="{% if site_company.logo %}{{ site_company.logo.url }}{% else %}{% static 'web/logo.png' %}{% endif %}"
+        alt="{{ site_company.name|default:'My Phone' }}" />
+    <div class="dn-name">{{ site_company.name|default:"My Phone" }}</div>
+    <div class="dn-by">Created by <strong>DevNest System</strong></div>
+</div>
+<style>
+    #devnest-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        background: #0b0e14;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+        transition: opacity .5s ease;
+    }
+
+    #devnest-splash .dn-logo {
+        width: 130px;
+        height: 130px;
+        object-fit: contain;
+        border-radius: 22px;
+        background: #fff;
+        padding: 10px;
+        animation: dnPulse 1.4s ease-in-out infinite;
+    }
+
+    #devnest-splash .dn-name {
+        color: #fff;
+        font-size: 1.6rem;
+        font-weight: 900;
+        letter-spacing: -.02em;
+    }
+
+    #devnest-splash .dn-by {
+        color: #94a3b8;
+        font-size: .9rem;
+    }
+
+    #devnest-splash .dn-by strong {
+        color: #e11d48;
+    }
+
+    @keyframes dnPulse {
+        0%, 100% { transform: scale(1); opacity: .9; }
+        50% { transform: scale(1.08); opacity: 1; }
+    }
+</style>
+<script>
+    (function () {
+        var s = document.getElementById('devnest-splash');
+        if (!s) return;
+        // Show once per browser session (on opening the software), not on every page.
+        if (sessionStorage.getItem('dnSplashShown')) { if (s.parentNode) s.parentNode.removeChild(s); return; }
+        sessionStorage.setItem('dnSplashShown', '1');
+        setTimeout(function () {
+            s.style.opacity = '0';
+            setTimeout(function () { if (s.parentNode) s.parentNode.removeChild(s); }, 500);
+        }, 2500);
+    })();
+</script>

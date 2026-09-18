@@ -1,0 +1,77 @@
+{% extends "web/base.html" %}
+{% block content %}
+<div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem">
+    <div>
+        <h1 class="page-title gradient-text">{{ supplier.name }}</h1>
+        <p class="page-subtitle">
+            {% if supplier.company %}{{ supplier.company }}&nbsp;·&nbsp;{% endif %}
+            {{ supplier.phone|default:"No phone" }}
+            {% if supplier.email %}&nbsp;·&nbsp;{{ supplier.email }}{% endif %}
+        </p>
+    </div>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+        <a href="{% url 'web:supplier_edit' supplier.pk %}" class="btn btn-primary">✏ Edit</a>
+        <a href="{% url 'web:suppliers' %}" class="btn btn-secondary">← Back</a>
+    </div>
+</div>
+
+<!-- Summary strip -->
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin-bottom:1.5rem">
+    <div class="stat-card">
+        <div class="stat-label">Total Spend</div>
+        <div class="stat-value">Rs. {{ total_spend|floatformat:0 }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Procurements</div>
+        <div class="stat-value">{{ purchase_count }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Balance</div>
+        <div class="stat-value" style="font-size:1.1rem">Rs. {{ supplier.balance|floatformat:0 }}</div>
+    </div>
+</div>
+
+{% if supplier.address %}
+<div class="info-card" style="margin-bottom:1.5rem">
+    <p class="section-label">Address</p>
+    <p style="margin:0;color:var(--text-muted)">{{ supplier.address }}</p>
+</div>
+{% endif %}
+
+<!-- Procurement history -->
+<div class="table-card">
+    <div style="padding:.75rem 1rem .25rem">
+        <h2 style="font-size:.8rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:0">
+            Procurement History</h2>
+    </div>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Date</th>
+                <th>Invoice #</th>
+                <th style="text-align:right">Items</th>
+                <th style="text-align:right">Total</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in procurements %}
+            <tr>
+                <td><strong>#{{ p.pk }}</strong></td>
+                <td>{{ p.date|date:"d M Y" }}</td>
+                <td>{{ p.invoice_no|default:"—" }}</td>
+                <td style="text-align:right">{{ p.items.count }}</td>
+                <td style="text-align:right"><strong>Rs. {{ p.total|floatformat:0 }}</strong></td>
+                <td style="text-align:right">
+                    <a href="{% url 'web:procurement_detail' p.pk %}" style="color:var(--brand)">View →</a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" style="text-align:center;padding:3rem;color:var(--text-muted)">
+                No procurements yet from this supplier.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

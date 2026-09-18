@@ -1,0 +1,152 @@
+{% extends "web/base.html" %}
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title gradient-text">Settings</h1>
+    <p class="page-subtitle">Company profile, users &amp; branches</p>
+</div>
+
+<div class="detail-grid">
+    <div style="display:flex;flex-direction:column;gap:1rem">
+        <div class="info-card">
+            <h2 style="font-size:1rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:0 0 1rem">Company</h2>
+            {% if can_edit %}
+            <form method="post" action="{% url 'web:company_save' %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="form-field" style="margin-bottom:.75rem">
+                    <label class="form-label">Shop Logo <small style="color:var(--text-muted)">(shown in sidebar &amp; on invoices)</small></label>
+                    <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+                        {% if company.logo %}
+                        <img src="{{ company.logo.url }}" alt="Logo"
+                            style="height:52px;width:52px;object-fit:contain;border:1px solid var(--border);border-radius:8px;background:#fff;padding:4px" />
+                        {% endif %}
+                        <input type="file" name="logo" accept="image/*" class="form-input" style="padding:.3rem" />
+                        {% if company.logo %}
+                        <label style="font-size:.82rem;color:var(--text-muted);display:flex;align-items:center;gap:.3rem">
+                            <input type="checkbox" name="remove_logo" value="1" /> Remove logo
+                        </label>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="form-grid-2">
+                    <div class="form-field">
+                        <label class="form-label">Shop Name</label>
+                        <input type="text" name="name" class="form-input" value="{{ company.name }}" required />
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">Phone</label>
+                        <input type="text" name="phone" class="form-input" value="{{ company.phone }}" />
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">Email</label>
+                        <input type="email" name="email" class="form-input" value="{{ company.email }}" />
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">NTN / Tax</label>
+                        <input type="text" name="ntn" class="form-input" value="{{ company.ntn }}" />
+                    </div>
+                </div>
+                <div class="form-field" style="margin-top:.75rem">
+                    <label class="form-label">Shop Location / Address <small style="color:var(--text-muted)">(printed on invoices)</small></label>
+                    <textarea name="address" class="form-textarea" rows="2"
+                        placeholder="e.g. Shop 12, Hall Road, Lahore">{{ company.address }}</textarea>
+                </div>
+                <div class="form-field" style="margin-top:.75rem">
+                    <label class="form-label">Receipt Footer</label>
+                    <input type="text" name="receipt_footer" class="form-input" value="{{ company.receipt_footer }}"
+                        placeholder="e.g. No refund without receipt" />
+                </div>
+                <div class="form-actions" style="margin-top:1rem">
+                    <button type="submit" class="btn btn-primary">💾 Save Company</button>
+                </div>
+            </form>
+            {% else %}
+            <div class="info-row">
+                <div class="info-field"><span class="info-label">Name</span><span class="info-value">{{ company.name }}</span></div>
+                <div class="info-field"><span class="info-label">Phone</span><span class="info-value">{{ company.phone|default:"—" }}</span></div>
+                <div class="info-field"><span class="info-label">Email</span><span class="info-value">{{ company.email|default:"—" }}</span></div>
+                <div class="info-field"><span class="info-label">Currency</span><span class="info-value">{{ company.currency }}</span></div>
+                <div class="info-field"><span class="info-label">Location</span><span class="info-value">{{ company.address|default:"—" }}</span></div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="info-card">
+            <h2 style="font-size:1rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:0 0 1rem">Users</h2>
+            <table class="table">
+                <thead><tr><th>Username</th><th>Name</th><th>Role</th><th>Status</th></tr></thead>
+                <tbody>
+                    {% for u in users %}
+                    <tr>
+                        <td><strong>{{ u.username }}</strong></td>
+                        <td>
+                            {% if can_edit %}
+                            <form method="post" action="{% url 'web:user_edit' u.pk %}"
+                                style="display:flex;gap:.4rem;align-items:center">
+                                {% csrf_token %}
+                                <input type="text" name="full_name" value="{{ u.get_full_name }}"
+                                    placeholder="Full name" class="form-input"
+                                    style="padding:.25rem .5rem;font-size:.85rem;min-width:120px" />
+                                <button type="submit" class="btn btn-secondary"
+                                    style="padding:.25rem .6rem;font-size:.8rem">Save</button>
+                            </form>
+                            {% else %}
+                            {{ u.get_full_name|default:"—" }}
+                            {% endif %}
+                        </td>
+                        <td>{{ u.is_superuser|yesno:"Owner,Staff" }}</td>
+                        <td><span class="badge {% if u.is_active %}badge-green{% else %}badge-gray{% endif %}">{{ u.is_active|yesno:"Active,Inactive" }}</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:1rem">
+        <div class="info-card">
+            <h2 style="font-size:1rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:0 0 1rem">Branches</h2>
+            {% for b in branches %}
+            <div class="info-field"><span class="info-label">{{ b.name }}</span><span class="info-value">{{ b.address|default:"—" }}</span></div>
+            {% empty %}
+            <p style="color:var(--text-muted)">No branches.</p>
+            {% endfor %}
+        </div>
+
+        {% if can_edit %}
+        <div class="info-card">
+            <h2 style="font-size:1rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:0 0 1rem">Backup &amp; Restore</h2>
+
+            {% if restored %}
+            <div style="background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;padding:.6rem .9rem;border-radius:8px;margin-bottom:1rem;font-size:.875rem">
+                ✅ Backup restored successfully. You may need to sign in again.
+            </div>
+            {% endif %}
+            {% if restore_error %}
+            <div class="form-error" style="margin-bottom:1rem">⚠ {{ restore_error }}</div>
+            {% endif %}
+
+            <p style="font-size:.875rem;color:var(--text-muted);margin:0 0 1rem">
+                Download a full backup (database + uploaded files). Plug in your USB drive, then
+                save the downloaded <code>.zip</code> to it to keep your records safe.
+            </p>
+            <a href="{% url 'web:backup_download' %}" class="btn btn-primary">💾 Download Backup (.zip)</a>
+
+            <hr style="border:none;border-top:1px solid var(--border);margin:1.25rem 0">
+
+            <p style="font-size:.875rem;color:#be123c;margin:0 0 .75rem">
+                <strong>Restore:</strong> uploading a backup <strong>replaces all current records</strong>. Use with care.
+            </p>
+            <form method="post" action="{% url 'web:restore_backup' %}" enctype="multipart/form-data"
+                onsubmit="return confirm('This will REPLACE all current records with the backup. This cannot be undone. Continue?')">
+                {% csrf_token %}
+                <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+                    <input type="file" name="backup" accept=".zip" required class="form-input" style="padding:.3rem" />
+                    <button type="submit" class="btn"
+                        style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5">♻ Restore from Backup</button>
+                </div>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

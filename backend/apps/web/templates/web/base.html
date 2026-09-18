@@ -1,0 +1,79 @@
+{% load static %}{% load web_extras %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title|default:"Dashboard" }} — {{ site_company.name|default:"My Phone" }}</title>
+  <link rel="stylesheet" href="{% static 'web/app.css' %}">
+  <style media="print">
+    /* Print only the document — hide the app chrome and any on-screen controls. */
+    .sidebar, .topbar, .no-print { display: none !important; }
+    .app-shell { display: block !important; }
+    .main { margin: 0 !important; }
+    .content { padding: 0 !important; }
+    .content-inner { max-width: none !important; padding: 0 !important; margin: 0 !important; }
+    body, .app-shell, .main, .content { background: #fff !important; }
+    a { color: #000 !important; text-decoration: none !important; }
+    .table-card, .stat-card, .info-card, .form-card { box-shadow: none !important; border-color: #ccc !important; }
+    @page { margin: 14mm; }
+  </style>
+  <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+  <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+</head>
+
+<body>
+  {% include "web/_splash.html" %}
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand-bar">
+        <!-- Shop logo — uploaded logo if set, else the bundled default -->
+        {% if site_company.logo %}
+        <img src="{{ site_company.logo.url }}" alt="{{ site_company.name }}" class="brand-logo-img" />
+        {% else %}
+        <img src="{% static 'web/logo.png' %}" alt="My Phone" class="brand-logo-img" />
+        {% endif %}
+        <div>
+          <div class="brand-name">{{ site_company.name|default:"My Phone" }}</div>
+          <div class="brand-sub">Mobile Shop ERP</div>
+        </div>
+      </div>
+
+      <nav class="nav">
+        {% for tab in tabs %}
+        <a href="{% url tab.url_name %}"
+          class="tab{% if tab.accent %} accent{% endif %}{% if active == tab.match %} active{% endif %}">
+          <span class="ic">{{ tab.icon|nav_icon }}</span>
+          <span>{{ tab.label }}</span>
+        </a>
+        {% endfor %}
+      </nav>
+
+      <div class="sidebar-user">
+        <div class="avatar">{{ request.user.username|first|upper|default:"A" }}</div>
+        <div>
+          <div class="su-name">{{ request.user.get_full_name|default:request.user.username|default:"Administrator" }}
+          </div>
+          <div class="su-role">{{ request.user.is_superuser|yesno:"Owner,Staff" }}</div>
+        </div>
+        <a href="{% url 'web:logout' %}" class="logout-btn" title="Sign out">⏏</a>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="main">
+      <main class="content">
+        <div class="content-inner">
+          {% if active and active != 'dashboard' %}
+          <button type="button" onclick="if(history.length>1){history.back()}else{location.href='{% url 'web:dashboard' %}'}"
+            class="btn btn-secondary no-print" style="margin-bottom:1rem" title="Go back">← Back</button>
+          {% endif %}
+          {% block content %}{% endblock %}
+        </div>
+      </main>
+    </div>
+  </div>
+</body>
+
+</html>
