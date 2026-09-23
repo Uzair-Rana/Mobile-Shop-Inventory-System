@@ -122,8 +122,7 @@ def dashboard(request):
     open_repairs  = RepairJob.objects.exclude(status__in=['delivered', 'cancelled']).count()
     devices_stock = Unit.objects.filter(lifecycle_state='in_stock').count()
     overdue_plans = InstallmentPlan.objects.filter(status='active', next_due_date__lt=today).count()
-    low_stock = Product.objects.filter(stock_qty__lte=F('reorder_level')).count()
-    low_spares = _spare_stock_qs().filter(stock__lte=F('reorder_level')).count()
+    low_total = low_stock_count()      # products, accessories & spare parts
 
     kpis = [
         {'label': f'Sales ({period_label})',   'value': f'Rs. {total_sales:,.0f}',    'color': 'rose'},
@@ -137,8 +136,7 @@ def dashboard(request):
         {'label': f'Invoices ({period_label})','value': period_invoices.count(),       'color': 'blue'},
         {'label': 'Devices In Stock',          'value': devices_stock,                 'color': 'violet'},
         {'label': 'Open Repairs',              'value': open_repairs,                  'color': 'amber'},
-        {'label': 'Low Stock Items',           'value': low_stock,                     'color': 'rose', 'url': 'web:products', 'query': '?low=1'},
-        {'label': 'Low Stock Spares',          'value': low_spares,                    'color': 'rose', 'url': 'web:spare_parts', 'query': '?low=1'},
+        {'label': 'Low Stock Alerts',          'value': low_total,                     'color': 'rose', 'url': 'web:low_stock'},
         {'label': 'Overdue Plans',             'value': overdue_plans,                 'color': 'cyan'},
     ]
 
@@ -369,6 +367,66 @@ def _decimal(raw, current):
         return Decimal(str(raw).strip())
     except (InvalidOperation, AttributeError, TypeError, ValueError):
         return current
+
+
+# ── Low-stock alerts ──────────────────────────────────────────────────────────
+#
+# Every item that can run out carries its own alert level (Product.reorder_level
+# / SparePart.reorder_level, set when it is bought in Purchases). One helper
+# feeds the alerts page, the sidebar badge and the timed reminder, so all three
+# always agree.
+
+def low_stock_items():
+    """Every product / accessory / spare part at or below its alert level,
+    worst shortfall first."""
+    from django.urls import reverse
+    from apps.inventory.models import Product
+    products = (Product.objects.filter(stock_qty__lte=F('reorder_level'))
+                .order_by('name'))
+    rows = [{'kind': 'Accessory' if (p.category or '').lower() != 'product' else 'Product',
+             'name': p.name, 'sku': p.sku, 'brand': p.brand,
+             'stock': p.stock_qty, 'level': p.reorder_level,
+             'short': max(0, p.reorder_level - p.stock_qty),
+             'edit_url': reverse('web:product_edit', args=[p.pk]),
+             'detail_url': ''}
+            for p in products]
+    for part in _spare_stock_qs().filter(stock__lte=F('reorder_level')).order_by('name'):
+        rows.append({'kind': 'Spare Part', 'name': part.name, 'sku': part.sku,
+                     'brand': part.brand_compat,
+                     'stock': part.stock, 'level': part.reorder_level,
+                     'short': max(0, part.reorder_level - part.stock),
+                     'edit_url': reverse('web:spare_part_edit', args=[part.pk]),
+                     'detail_url': reverse('web:spare_part_detail', args=[part.pk])})
+    rows.sort(key=lambda r: (-r['short'], r['name'].lower()))
+    return rows
+
+
+def low_stock_count():
+    """Cheap count for the sidebar badge and the reminder."""
+    from apps.inventory.models import Product
+    return (Product.objects.filter(stock_qty__lte=F('reorder_level')).count()
+            + _spare_stock_qs().filter(stock__lte=F('reorder_level')).count())
+
+
+@login_required(login_url='web:login')
+def low_stock(request):
+    rows = low_stock_items()
+    out_of_stock = sum(1 for r in rows if r['stock'] <= 0)
+    return render(request, 'web/low_stock.html', _ctx('low_stock',
+        title='Low Stock Alerts', rows=rows, total=len(rows), out_of_stock=out_of_stock))
+
+
+@login_required(login_url='web:login')
+def low_stock_feed(request):
+    """JSON for the 9 AM / 11 AM reminder in the top bar."""
+    from django.http import JsonResponse
+    rows = low_stock_items()
+    return JsonResponse({
+        'count': len(rows),
+        'out_of_stock': sum(1 for r in rows if r['stock'] <= 0),
+        'items': [{'name': r['name'], 'stock': r['stock'], 'level': r['level'],
+                   'kind': r['kind']} for r in rows[:8]],
+    })
 
 
 @login_required(login_url='web:login')
@@ -1667,6 +1725,40 @@ def printing_save(request):
 
 
 @login_required(login_url='web:login')
+@require_POST
+def low_stock_times_save(request):
+    """Owner picks when the low-stock reminder pops up (up to 4 times a day).
+
+    Lives on the Settings page (with backup & restore), so it is not behind the
+    Developer Options access key — but only the owner can change it."""
+    from django.contrib import messages
+    from django.urls import reverse
+    from apps.settings_app.models import CompanySettings
+    if request.user.is_superuser:
+        company, _ = CompanySettings.objects.get_or_create(id=1)
+        times = []
+        for raw in request.POST.getlist('alert_time'):
+            raw = (raw or '').strip()
+            if not raw:
+                continue
+            try:
+                h, m = (int(x) for x in raw.split(':')[:2])
+            except ValueError:
+                messages.error(request, f'"{raw}" is not a valid time — use HH:MM.')
+                return redirect(reverse('web:backup') + '#low-stock')
+            if not (0 <= h < 24 and 0 <= m < 60):
+                messages.error(request, f'"{raw}" is not a valid time — use HH:MM.')
+                return redirect(reverse('web:backup') + '#low-stock')
+            times.append(f'{h:02d}:{m:02d}')
+        times = sorted(set(times))
+        company.low_stock_alert_times = ','.join(times)
+        company.save(update_fields=['low_stock_alert_times', 'updated_at'])
+        messages.success(request, 'Low stock reminder times saved: ' +
+                         (', '.join(times) if times else 'reminder turned off.'))
+    return redirect(reverse('web:backup') + '#low-stock')
+
+
+@login_required(login_url='web:login')
 @settings_key_required
 @require_POST
 def option_save(request):
@@ -1731,8 +1823,13 @@ def option_save(request):
 
 @login_required(login_url='web:login')
 def backup_page(request):
+    from apps.settings_app.models import CompanySettings
+    company, _ = CompanySettings.objects.get_or_create(id=1)
+    # Four reminder slots, pre-filled with whatever is configured.
+    alert_time_slots = (company.alert_times() + ['', '', '', ''])[:4]
     return render(request, 'web/backup.html', _ctx('backup',
         title='Settings', can_edit=request.user.is_superuser,
+        alert_time_slots=alert_time_slots,
         restored=request.GET.get('restored'), restore_error=request.GET.get('restore_error')))
 
 

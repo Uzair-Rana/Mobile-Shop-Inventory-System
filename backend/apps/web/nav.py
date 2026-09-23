@@ -13,6 +13,7 @@ SECTIONS = {
             {'label': 'Spare Parts',    'url_name': 'web:spare_parts',  'icon': 'wrench', 'desc': 'Display, battery, charging, body, camera parts'},
             {'label': 'Products',       'url_name': 'web:products',     'icon': 'box',    'desc': 'Full product catalog'},
             {'label': 'Barcode Labels', 'url_name': 'web:labels',       'icon': 'tag',    'desc': 'Print price / IMEI labels'},
+            {'label': 'Low Stock Alerts', 'url_name': 'web:low_stock',  'icon': 'alert',  'desc': 'Items at or below their alert level'},
         ],
     },
     'selling': {
@@ -58,6 +59,7 @@ TABS = [
     {'label': 'Repairs',       'url_name': 'web:workshop',  'icon': 'wrench',  'match': 'workshop'},
     {'label': 'Procurement',   'url_name': 'web:procurement', 'icon': 'truck', 'match': 'procurement'},
     {'label': 'Finance',       'url_name': 'web:finance',   'icon': 'cash',    'match': 'finance'},
+    {'label': 'Low Stock',     'url_name': 'web:low_stock', 'icon': 'alert',   'match': 'low_stock', 'badge': 'low_stock_count'},
     # "Settings" is the shop-owner page (backup & restore); the technical page
     # behind the access key is "Developer Options".
     {'label': 'Settings',         'url_name': 'web:backup',   'icon': 'backup', 'match': 'backup'},

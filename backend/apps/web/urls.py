@@ -40,6 +40,7 @@ urlpatterns = [
     path('backup/',                views.backup_page,     name='backup'),
     path('backup/download/',       views.backup_download, name='backup_download'),
     path('backup/restore/',        views.restore_backup,  name='restore_backup'),
+    path('backup/low-stock-times/', views.low_stock_times_save, name='low_stock_times_save'),
     path('settings/users/<int:pk>/edit/', views.user_edit, name='user_edit'),
 
     # Stock — Excel export of any stock list (shared on WhatsApp)
@@ -60,6 +61,10 @@ urlpatterns = [
     path('stock/spare-parts/',            views.spare_parts,       name='spare_parts'),
     path('stock/spare-parts/<int:pk>/',   views.spare_part_detail, name='spare_part_detail'),
     path('stock/spare-parts/<int:pk>/edit/', views.spare_part_edit, name='spare_part_edit'),
+
+    # Stock — Low stock alerts
+    path('stock/low-stock/',       views.low_stock,      name='low_stock'),
+    path('stock/low-stock/feed/',  views.low_stock_feed, name='low_stock_feed'),
 
     # Stock — Products
     path('stock/products/',            views.products,     name='products'),

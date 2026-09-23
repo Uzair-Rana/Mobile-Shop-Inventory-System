@@ -35,6 +35,11 @@ class CompanySettings(models.Model):
     bill_disclaimer = models.TextField(
         blank=True, default=BILL_DISCLAIMER,
         help_text='Printed at the bottom of every bill')
+    # Low-stock reminder times, "HH:MM" comma separated (owner-editable in
+    # Settings → Low Stock Reminders). Blank turns the reminder off.
+    low_stock_alert_times = models.CharField(
+        max_length=100, default='09:00,11:00', blank=True,
+        help_text='Times of day the low-stock reminder pops up, e.g. 09:00,11:00')
     # Hashed key that unlocks Settings. Blank = the installation key.
     settings_key = models.CharField(max_length=128, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -45,6 +50,22 @@ class CompanySettings(models.Model):
 
     def __str__(self):
         return self.name
+
+    def alert_times(self):
+        """The reminder times as a clean, sorted list of 'HH:MM' strings."""
+        out = []
+        for raw in (self.low_stock_alert_times or '').split(','):
+            raw = raw.strip()
+            if not raw:
+                continue
+            try:
+                h, m = raw.split(':')
+                h, m = int(h), int(m)
+            except ValueError:
+                continue
+            if 0 <= h < 24 and 0 <= m < 60:
+                out.append(f'{h:02d}:{m:02d}')
+        return sorted(set(out))
 
 
 class ChoiceOption(models.Model):

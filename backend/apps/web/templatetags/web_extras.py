@@ -6,7 +6,7 @@ _ICONS = {
     'home': '🏠', 'pos': '🧾', 'box': '📦', 'receipt': '🧾', 'wrench': '🔧',
     'truck': '🚚', 'cash': '💵', 'cog': '⚙️', 'backup': '💾', 'device': '📱', 'plug': '🔌',
     'tag': '🏷️', 'users': '👥', 'building': '🏢', 'transfer': '🔁',
-    'expense': '💸', 'chart': '📊',
+    'expense': '💸', 'chart': '📊', 'alert': '🔔',
 }
 
 

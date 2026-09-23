@@ -50,4 +50,41 @@
     <p style="margin:0;color:var(--text-muted)">Only the shop owner can take or restore backups.</p>
 </div>
 {% endif %}
+
+<!-- Low stock reminder times -->
+<div class="info-card" id="low-stock" style="margin-top:1rem">
+    <h2
+        style="font-size:1rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:0 0 .5rem">
+        🔔 Low Stock Reminders</h2>
+    <p style="font-size:.85rem;color:var(--text-secondary);margin:0 0 1rem;line-height:1.6">
+        When the low-stock reminder pops up on screen each day. Leave a box empty to drop that time;
+        empty all four to turn the reminder off.
+    </p>
+    {% if can_edit %}
+    <form method="post" action="{% url 'web:low_stock_times_save' %}">
+        {% csrf_token %}
+        <div class="form-grid-4">
+            {% for t in alert_time_slots %}
+            <div class="form-field">
+                <label class="form-label">Time {{ forloop.counter }}</label>
+                <input type="time" name="alert_time" class="form-input" value="{{ t }}" />
+            </div>
+            {% endfor %}
+        </div>
+        <button type="submit" class="btn btn-primary" style="margin-top:.75rem">💾 Save Reminder Times</button>
+    </form>
+    {% else %}
+    <p style="margin:0;color:var(--text-muted);font-size:.875rem">
+        {% if low_stock_times %}Reminders at
+        {% for t in low_stock_times %}<strong>{{ t }}</strong>{% if not forloop.last %} and {% endif %}{% endfor %}.
+        {% else %}The reminder is switched off.{% endif %}
+        Only the shop owner can change these.
+    </p>
+    {% endif %}
+    <p style="font-size:.78rem;color:var(--text-muted);margin:1rem 0 0">
+        The reminder needs the program open. If the shop opens after a reminder time, it shows once when you open it.
+        See the list any time under <a href="{% url 'web:low_stock' %}"
+            style="color:var(--brand-500);font-weight:700">Low Stock</a>.
+    </p>
+</div>
 {% endblock %}

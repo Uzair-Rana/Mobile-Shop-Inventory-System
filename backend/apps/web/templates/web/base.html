@@ -46,6 +46,9 @@
           class="tab{% if tab.accent %} accent{% endif %}{% if active == tab.match %} active{% endif %}">
           <span class="ic">{{ tab.icon|nav_icon }}</span>
           <span>{{ tab.label }}</span>
+          {% if tab.badge == 'low_stock_count' and low_stock_count %}
+          <span class="tab-badge">{{ low_stock_count }}</span>
+          {% endif %}
         </a>
         {% endfor %}
       </nav>
@@ -84,6 +87,26 @@
 
     <!-- Main -->
     <div class="main">
+      <header class="topbar no-print">
+        <span class="topbar-title">{{ title|default:"Dashboard" }}</span>
+        <span class="topbar-spacer"></span>
+        <a href="{% url 'web:low_stock' %}" class="bell{% if low_stock_count %} bell-on{% endif %}"
+          title="{% if low_stock_count %}{{ low_stock_count }} item(s) at or below their low stock alert level{% else %}Stock levels are fine{% endif %}">
+          🔔{% if low_stock_count %}<span class="bell-count">{{ low_stock_count }}</span>{% endif %}
+        </a>
+      </header>
+
+      <!-- 9 AM / 11 AM low-stock reminder (dismissible) -->
+      <div id="low-stock-alert" class="low-alert no-print" hidden>
+        <span class="low-alert-ico">🔔</span>
+        <div>
+          <strong id="low-alert-title"></strong>
+          <div id="low-alert-body" class="low-alert-body"></div>
+        </div>
+        <a href="{% url 'web:low_stock' %}" class="btn btn-primary" style="padding:.3rem .9rem;font-size:.85rem">View list</a>
+        <button type="button" class="low-alert-x" onclick="dismissLowStockAlert()" title="Dismiss">✕</button>
+      </div>
+
       <main class="content">
         <div class="content-inner">
           {% if active and active != 'dashboard' %}
@@ -205,6 +228,66 @@
       try { v = localStorage.getItem('view:' + el.dataset.viewKey) || 'list'; } catch (e) {}
       setView(el.dataset.viewKey, v);
     });
+
+    /* ─── Low-stock reminder — every morning at 9 AM and again at 11 AM ──────
+       The app only runs while a browser window is open, so each slot is
+       remembered per day in localStorage: it shows once when the hour arrives,
+       and catches up later the same day if the shop opened after it passed. */
+    /* Times are owner-set in Settings → Low Stock Reminders. */
+    var LOW_STOCK_TIMES = [{% for t in low_stock_times %}"{{ t }}"{% if not forloop.last %}, {% endif %}{% endfor %}];
+
+    function lowStockSlotKey(d, slot) {
+      return 'lowStockAlert:' + d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate() + ':' + slot;
+    }
+    function lowStockDone(key) {
+      try { return localStorage.getItem(key) === '1'; } catch (e) { return false; }
+    }
+    function markLowStockDone(key) {
+      try { localStorage.setItem(key, '1'); } catch (e) {}
+    }
+    function dismissLowStockAlert() {
+      var box = document.getElementById('low-stock-alert');
+      if (box) box.hidden = true;
+    }
+    function showLowStockAlert(data) {
+      var box = document.getElementById('low-stock-alert');
+      if (!box) return;
+      var head = data.count + (data.count === 1 ? ' item is low on stock' : ' items are low on stock');
+      if (data.out_of_stock) head += ' — ' + data.out_of_stock + ' out of stock';
+      var names = data.items.map(function (i) { return i.name + ' (' + i.stock + ')'; }).join(' · ');
+      if (data.count > data.items.length) names += ' …';
+      document.getElementById('low-alert-title').textContent = head;
+      document.getElementById('low-alert-body').textContent = names;
+      box.hidden = false;
+      // Desktop pop-up too, if the shop allowed notifications (see the
+      // "Enable desktop alerts" button on the Low Stock page).
+      try {
+        if (window.Notification && Notification.permission === 'granted') {
+          new Notification('Low stock — time to reorder', { body: head + '
+' + names });
+        }
+      } catch (e) {}
+    }
+    function checkLowStockSchedule() {
+      var now = new Date();
+      var mins = now.getHours() * 60 + now.getMinutes();
+      var due = null;
+      LOW_STOCK_TIMES.forEach(function (t) {
+        var parts = t.split(':');
+        var at = parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+        var key = lowStockSlotKey(now, t);
+        if (mins >= at && !lowStockDone(key)) { due = t; markLowStockDone(key); }
+      });
+      if (due === null) return;   // nothing due — stay quiet
+      fetch('{% url "web:low_stock_feed" %}', { credentials: 'same-origin' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) { if (d && d.count > 0) showLowStockAlert(d); })
+        .catch(function () {});
+    }
+    if (LOW_STOCK_TIMES.length && document.getElementById('low-stock-alert')) {
+      checkLowStockSchedule();
+      setInterval(checkLowStockSchedule, 60000);
+    }
   </script>
 </body>
 

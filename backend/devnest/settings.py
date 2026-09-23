@@ -75,6 +75,7 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'apps.web.context_processors.company',
                 'apps.web.context_processors.option_badges',
+                'apps.web.context_processors.low_stock',
             ],
         },
     },
