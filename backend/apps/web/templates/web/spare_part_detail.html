@@ -6,7 +6,10 @@
         <h1 class="page-title gradient-text">{{ part.name }}</h1>
         <p class="page-subtitle" style="font-family:ui-monospace,monospace">{{ part.sku }}</p>
     </div>
-    <a href="{% url 'web:spare_parts' %}" class="btn btn-secondary">← Back to Spare Parts</a>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+        <a href="{% url 'web:spare_part_edit' part.pk %}" class="btn btn-primary">✏ Edit</a>
+        <a href="{% url 'web:spare_parts' %}" class="btn btn-secondary">← Back to Spare Parts</a>
+    </div>
 </div>
 
 <div class="detail-grid">

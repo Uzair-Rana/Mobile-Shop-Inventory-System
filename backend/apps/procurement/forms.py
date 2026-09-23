@@ -47,8 +47,8 @@ class ProcurementForm(forms.ModelForm):
 class ProcurementItemForm(forms.ModelForm):
     class Meta:
         model = ProcurementItem
-        fields = ['category', 'product', 'sku', 'brand', 'qty', 'unit_cost', 'sell_price', 'imeis',
-                  'pta_status', 'condition', 'spare_category']
+        fields = ['category', 'product', 'sku', 'brand', 'qty', 'unit_cost', 'sell_price',
+                  'low_stock_alert', 'imeis', 'pta_status', 'condition', 'spare_category']
         widgets = {
             'category':   forms.Select(attrs={'class': 'form-select cat-select'}),
             'product':    forms.TextInput(attrs={'class': 'form-input', 'placeholder': 'Name / model',
@@ -59,6 +59,8 @@ class ProcurementItemForm(forms.ModelForm):
             'qty':        forms.NumberInput(attrs={'class': 'form-input', 'min': 1}),
             'unit_cost':  forms.NumberInput(attrs={'class': 'form-input', 'min': 0, 'step': '0.01'}),
             'sell_price': forms.NumberInput(attrs={'class': 'form-input', 'min': 0, 'step': '0.01'}),
+            'low_stock_alert': forms.NumberInput(attrs={'class': 'form-input low-stock-field', 'min': 0,
+                                                        'placeholder': 'e.g. 5'}),
             'imeis':      forms.Textarea(attrs={'class': 'form-textarea imei-field', 'rows': 2,
                                                 'placeholder': 'One IMEI per line (or comma separated)'}),
             'pta_status': forms.Select(attrs={'class': 'form-select'}),
@@ -68,7 +70,7 @@ class ProcurementItemForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # PTA / condition choices come from Settings → Dropdown Options.
+        # PTA / condition choices come from Developer Options → Dropdown Options.
         from apps.settings_app.choices import options
         for name, group in (('pta_status', 'pta_status'), ('condition', 'device_condition')):
             current = getattr(self.instance, name, '') or None
@@ -109,6 +111,7 @@ class ProcurementItemForm(forms.ModelForm):
                 data['pta_status'] = (options('pta_status') or ['PTA Approved'])[0]
             if not data.get('condition'):
                 data['condition'] = (options('device_condition') or ['Grade A'])[0]
+            data['low_stock_alert'] = None   # serialised devices have no threshold
         else:
             if qty < 1:
                 self.add_error('qty', 'Quantity must be at least 1.')

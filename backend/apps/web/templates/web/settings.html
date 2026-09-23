@@ -3,12 +3,12 @@
 {% block content %}
 <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem">
     <div>
-        <h1 class="page-title gradient-text">Settings</h1>
+        <h1 class="page-title gradient-text">Developer Options</h1>
         <p class="page-subtitle">Company profile, appearance, printing, users &amp; access</p>
     </div>
     <form method="post" action="{% url 'web:settings_lock' %}">
         {% csrf_token %}
-        <button type="submit" class="btn btn-secondary" title="Lock Settings again">🔒 Lock</button>
+        <button type="submit" class="btn btn-secondary" title="Lock Developer Options again">🔒 Lock</button>
     </form>
 </div>
 
@@ -202,11 +202,11 @@
                 Every bill prints on a single page. Pick the paper loaded in your printer.</p>
         </div>
 
-        <!-- Access key — protects Settings and Backup & Restore -->
+        <!-- Access key — protects Developer Options -->
         <div class="info-card">
             <h2 style="font-size:1rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:0 0 .5rem">🔑 Access Key</h2>
             <p style="font-size:.8rem;color:var(--text-muted);margin:0 0 1rem">
-                Needed to open Settings.
+                Needed to open Developer Options.
                 {% if not company.settings_key %}Currently the installation key.{% endif %}</p>
             <form method="post" action="{% url 'web:settings_key_save' %}" autocomplete="off">
                 {% csrf_token %}

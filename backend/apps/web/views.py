@@ -123,6 +123,7 @@ def dashboard(request):
     devices_stock = Unit.objects.filter(lifecycle_state='in_stock').count()
     overdue_plans = InstallmentPlan.objects.filter(status='active', next_due_date__lt=today).count()
     low_stock = Product.objects.filter(stock_qty__lte=F('reorder_level')).count()
+    low_spares = _spare_stock_qs().filter(stock__lte=F('reorder_level')).count()
 
     kpis = [
         {'label': f'Sales ({period_label})',   'value': f'Rs. {total_sales:,.0f}',    'color': 'rose'},
@@ -137,6 +138,7 @@ def dashboard(request):
         {'label': 'Devices In Stock',          'value': devices_stock,                 'color': 'violet'},
         {'label': 'Open Repairs',              'value': open_repairs,                  'color': 'amber'},
         {'label': 'Low Stock Items',           'value': low_stock,                     'color': 'rose', 'url': 'web:products', 'query': '?low=1'},
+        {'label': 'Low Stock Spares',          'value': low_spares,                    'color': 'rose', 'url': 'web:spare_parts', 'query': '?low=1'},
         {'label': 'Overdue Plans',             'value': overdue_plans,                 'color': 'cyan'},
     ]
 
@@ -202,6 +204,8 @@ def stock_queryset(kind, params):
     qs = _spare_stock_qs().annotate(stock_level=F('stock')).order_by('category', 'name')
     if params.get('category'):
         qs = qs.filter(category=params['category'])
+    if params.get('low'):
+        qs = qs.filter(stock_level__lte=F('reorder_level'))
     return word_search(qs, q, SPARE_FIELDS)
 
 
@@ -358,10 +362,71 @@ def product_add(request):
     return redirect('web:procurement_add')
 
 
+def _decimal(raw, current):
+    """POSTed money field → Decimal, falling back to the stored value."""
+    from decimal import Decimal, InvalidOperation
+    try:
+        return Decimal(str(raw).strip())
+    except (InvalidOperation, AttributeError, TypeError, ValueError):
+        return current
+
+
 @login_required(login_url='web:login')
 def product_edit(request, pk):
-    # Products are only restocked via Procurement
-    return redirect('web:procurement_add')
+    """Edit a catalog item's details — name, prices and the low-stock alert.
+
+    Stock quantity is deliberately read-only: quantities only ever move through
+    Purchases, POS and returns, so they stay reconcilable with the ledger.
+    """
+    from apps.inventory.models import Product
+    from apps.audit.models import AuditTrail
+    from apps.audit.recorder import record_audit
+
+    prod  = get_object_or_404(Product, pk=pk)
+    error = ''
+    if request.method == 'POST':
+        p = request.POST
+        name = (p.get('name') or '').strip()
+        sku  = (p.get('sku') or '').strip()
+        try:
+            level = int(p.get('reorder_level') or 0)
+        except ValueError:
+            level = -1
+
+        if not name:
+            error = 'Product name is required.'
+        elif not sku:
+            error = 'SKU is required.'
+        elif Product.objects.filter(sku__iexact=sku).exclude(pk=prod.pk).exists():
+            error = 'Another product already uses this SKU.'
+        elif level < 0:
+            error = 'Low stock alert must be 0 or more.'
+        else:
+            before = {'cost_price': prod.cost_price, 'sell_price': prod.sell_price,
+                      'reorder_level': prod.reorder_level}
+            prod.name     = name
+            prod.sku      = sku
+            prod.brand    = (p.get('brand') or '').strip()
+            prod.category = (p.get('category') or '').strip()
+            prod.description = (p.get('description') or '').strip()
+            prod.cost_price  = _decimal(p.get('cost_price'), prod.cost_price)
+            prod.sell_price  = _decimal(p.get('sell_price'), prod.sell_price)
+            prod.reorder_level = level
+            prod.save()
+            after = {'cost_price': prod.cost_price, 'sell_price': prod.sell_price,
+                     'reorder_level': prod.reorder_level}
+            if before != after:
+                record_audit(
+                    actor=request.user, action_type=AuditTrail.PRICE_ADJUSTMENT,
+                    entity_type='Product', entity_id=prod.pk,
+                    previous_values=before, new_values=after,
+                    reason='Edited from the product page', request=request,
+                )
+            dest = 'web:accessories' if prod.category.lower() != 'product' else 'web:products'
+            return redirect(dest)
+
+    return render(request, 'web/product_form.html', _ctx('stock',
+        title=f'Edit {prod.name}', product=prod, error=error))
 
 
 # ── Stock — Barcode Labels ────────────────────────────────────────────────────
@@ -1483,11 +1548,11 @@ def expense_add(request):
 
 # ── Settings ──────────────────────────────────────────────────────────────────
 
-SETTINGS_UNLOCK_SECONDS = 30 * 60   # idle time before Settings / Backup lock again
+SETTINGS_UNLOCK_SECONDS = 30 * 60   # idle time before Developer Options lock again
 
 
 def _settings_key_ok(key):
-    """The Settings access key: the owner's own key if set, else the installation key."""
+    """The Developer Options access key: the owner's own key if set, else the installation key."""
     from django.contrib.auth.hashers import check_password
     from apps.settings_app.models import CompanySettings
     from .activation import check_key
@@ -1509,7 +1574,7 @@ def settings_key_required(view):
         at = request.session.get('settings_unlocked_at', 0)
         if time.time() - at > SETTINGS_UNLOCK_SECONDS:
             request.session.pop('settings_unlocked_at', None)
-            # a form posted after the unlock expired returns to Settings
+            # a form posted after the unlock expired returns to Developer Options
             nxt = request.get_full_path() if request.method == 'GET' else reverse('web:settings')
             return redirect(f"{reverse('web:settings_unlock')}?next={nxt}")
         request.session['settings_unlocked_at'] = time.time()   # sliding timeout
@@ -1667,7 +1732,7 @@ def option_save(request):
 @login_required(login_url='web:login')
 def backup_page(request):
     return render(request, 'web/backup.html', _ctx('backup',
-        title='Backup & Restore', can_edit=request.user.is_superuser,
+        title='Settings', can_edit=request.user.is_superuser,
         restored=request.GET.get('restored'), restore_error=request.GET.get('restore_error')))
 
 
@@ -1684,7 +1749,7 @@ def settings_page(request):
          'items': ChoiceOption.objects.filter(group=key).order_by('sort_order', 'id')}
         for key, label in ChoiceOption.GROUPS]
     return render(request, 'web/settings.html', _ctx('settings',
-        title='Settings', company=company, users=users,
+        title='Developer Options', company=company, users=users,
         themes=THEMES, papers=RECEIPT_PAPERS, option_groups=option_groups,
         option_colors=ChoiceOption.COLORS, can_edit=request.user.is_superuser))
 
@@ -1845,11 +1910,72 @@ def spare_parts(request):
     qs = stock_queryset('spare_parts', request.GET)
     category = request.GET.get('category', '')
     q        = request.GET.get('q', '')
+    low      = request.GET.get('low', '')
 
     categories = SparePart.Category.choices
     return render(request, 'web/spare_parts.html', _ctx('stock',
         title='Spare Parts', parts=qs[:200], categories=categories,
-        active_cat=category, q=q))
+        active_cat=category, q=q, low=low))
+
+
+@login_required(login_url='web:login')
+def spare_part_edit(request, pk):
+    """Edit a spare part's details, prices and low-stock alert.
+
+    Stock on hand stays ledger-derived and is not editable here."""
+    from apps.spare_parts.models import SparePart
+    from apps.audit.models import AuditTrail
+    from apps.audit.recorder import record_audit
+
+    part  = get_object_or_404(SparePart, pk=pk)
+    error = ''
+    if request.method == 'POST':
+        p = request.POST
+        name = (p.get('name') or '').strip()
+        sku  = (p.get('sku') or '').strip()
+        try:
+            level = int(p.get('reorder_level') or 0)
+        except ValueError:
+            level = -1
+
+        if not name:
+            error = 'Part name is required.'
+        elif not sku:
+            error = 'SKU is required.'
+        elif SparePart.objects.filter(sku__iexact=sku).exclude(pk=part.pk).exists():
+            error = 'Another spare part already uses this SKU.'
+        elif level < 0:
+            error = 'Low stock alert must be 0 or more.'
+        else:
+            before = {'cost_price': part.cost_price, 'sell_price': part.sell_price,
+                      'reorder_level': part.reorder_level}
+            category = p.get('category') or part.category
+            if category in dict(SparePart.Category.choices):
+                part.category = category
+            part.name = name
+            part.sku  = sku
+            part.brand_compat = (p.get('brand_compat') or '').strip()
+            part.model_compat = (p.get('model_compat') or '').strip()
+            part.description  = (p.get('description') or '').strip()
+            part.cost_price   = _decimal(p.get('cost_price'), part.cost_price)
+            part.sell_price   = _decimal(p.get('sell_price'), part.sell_price)
+            part.reorder_level = level
+            part.save()
+            after = {'cost_price': part.cost_price, 'sell_price': part.sell_price,
+                     'reorder_level': part.reorder_level}
+            if before != after:
+                record_audit(
+                    actor=request.user, action_type=AuditTrail.PRICE_ADJUSTMENT,
+                    entity_type='SparePart', entity_id=part.pk,
+                    previous_values=before, new_values=after,
+                    reason='Edited from the spare part page', request=request,
+                )
+            return redirect('web:spare_part_detail', pk=part.pk)
+
+    stock = part.ledger.aggregate(s=Sum('qty'))['s'] or 0
+    return render(request, 'web/spare_part_form.html', _ctx('stock',
+        title=f'Edit {part.name}', part=part, stock=stock, error=error,
+        categories=SparePart.Category.choices))
 
 
 @login_required(login_url='web:login')

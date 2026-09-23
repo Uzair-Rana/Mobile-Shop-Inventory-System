@@ -67,6 +67,7 @@
                 <th style="text-align:right">Qty</th>
                 <th style="text-align:right">Unit Cost</th>
                 <th style="text-align:right">Sell Price</th>
+                <th style="text-align:right">Low Stock Alert</th>
                 <th style="text-align:right">Line Total</th>
                 <th>IMEIs</th>
                 <th>Applied</th>
@@ -91,6 +92,7 @@
                 <td style="text-align:right">{{ item.qty }}</td>
                 <td style="text-align:right">Rs. {{ item.unit_cost|floatformat:0 }}</td>
                 <td style="text-align:right">Rs. {{ item.sell_price|floatformat:0 }}</td>
+                <td style="text-align:right">{% if item.low_stock_alert is not None %}≤ {{ item.low_stock_alert }}{% else %}—{% endif %}</td>
                 <td style="text-align:right"><strong>Rs. {{ item.line_total|floatformat:0 }}</strong></td>
                 <td style="font-size:.75rem;color:var(--text-muted);max-width:180px;word-break:break-all">
                     {% if item.imeis %}{{ item.imeis }}{% else %}—{% endif %}

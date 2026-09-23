@@ -43,8 +43,9 @@
                 <th>Category</th>
                 <th style="text-align:right">Stock</th>
                 <th style="text-align:right">Cost</th>
+                <th style="text-align:right">Alert At</th>
                 <th style="text-align:right">Sell Price</th>
-                <th style="text-align:center">Share</th>
+                <th style="text-align:center">Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -59,15 +60,17 @@
                         class="badge {% if p.stock_qty <= p.reorder_level %}badge-red{% else %}badge-green{% endif %}">{{ p.stock_qty }}</span>
                 </td>
                 <td style="text-align:right">Rs. {{ p.cost_price|floatformat:0 }}</td>
+                <td style="text-align:right;color:var(--text-muted)">{{ p.reorder_level }}</td>
                 <td style="text-align:right">Rs. {{ p.sell_price|floatformat:0 }}</td>
-                <td style="text-align:center">
+                <td style="text-align:center;white-space:nowrap">
+                    <a href="{% url 'web:product_edit' p.pk %}" class="btn btn-secondary" style="padding:.25rem .6rem;font-size:.75rem" title="Edit details / low stock alert">✏ Edit</a>
                     <button type="button" onclick="waShareOne({{ forloop.counter0 }})" title="Share on WhatsApp"
                         style="background:#25D366;color:#fff;border:none;border-radius:6px;padding:.25rem .55rem;cursor:pointer;font-size:.85rem">📲</button>
                 </td>
             </tr>
             {% empty %}
             <tr>
-                <td colspan="8" style="text-align:center;padding:3rem;color:var(--text-muted)">
+                <td colspan="9" style="text-align:center;padding:3rem;color:var(--text-muted)">
                     No products yet — add them via <a href="{% url 'web:procurement_add' %}"
                         style="color:var(--brand)">Purchases</a>.
                 </td>
@@ -86,8 +89,11 @@
         <div class="sc-meta">Cost Rs. {{ p.cost_price|floatformat:0 }}</div>
         <div class="sc-foot">
             <span class="badge {% if p.stock_qty <= p.reorder_level %}badge-red{% else %}badge-green{% endif %}">{{ p.stock_qty }} in stock</span>
+            <span style="display:flex;gap:.3rem;align-items:center">
+            <a href="{% url 'web:product_edit' p.pk %}" class="btn btn-secondary" style="padding:.25rem .6rem;font-size:.75rem" title="Edit details / low stock alert">✏ Edit</a>
             <button type="button" onclick="waShareOne({{ forloop.counter0 }})" title="Share on WhatsApp"
                 style="background:#25D366;color:#fff;border:none;border-radius:6px;padding:.25rem .55rem;cursor:pointer;font-size:.85rem">📲</button>
+            </span>
         </div>
     </div>
     {% empty %}

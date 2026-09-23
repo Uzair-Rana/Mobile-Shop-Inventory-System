@@ -260,7 +260,7 @@
                         <div class="check-chips">
                             {% for a in accessory_options %}
                             <label class="check-chip"><input type="checkbox" name="accessories" value="{{ a }}" {% if a in received %}checked{% endif %} /> {{ a }}</label>
-                            {% empty %}<span class="field-hint">Add options in Settings → Dropdown Options.</span>
+                            {% empty %}<span class="field-hint">Add options in Developer Options → Dropdown Options.</span>
                             {% endfor %}
                         </div>
                     </div>

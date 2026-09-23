@@ -58,6 +58,8 @@ TABS = [
     {'label': 'Repairs',       'url_name': 'web:workshop',  'icon': 'wrench',  'match': 'workshop'},
     {'label': 'Procurement',   'url_name': 'web:procurement', 'icon': 'truck', 'match': 'procurement'},
     {'label': 'Finance',       'url_name': 'web:finance',   'icon': 'cash',    'match': 'finance'},
-    {'label': 'Settings',      'url_name': 'web:settings',  'icon': 'cog',     'match': 'settings'},
-    {'label': 'Backup & Restore', 'url_name': 'web:backup', 'icon': 'backup',  'match': 'backup'},
+    # "Settings" is the shop-owner page (backup & restore); the technical page
+    # behind the access key is "Developer Options".
+    {'label': 'Settings',         'url_name': 'web:backup',   'icon': 'backup', 'match': 'backup'},
+    {'label': 'Developer Options', 'url_name': 'web:settings', 'icon': 'cog',   'match': 'settings'},
 ]

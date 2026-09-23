@@ -26,7 +26,7 @@ class Invoice(models.Model):
     grand_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     amount_paid = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     balance_due = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    # Legacy keys (cash, card…) or an option label from Settings → Dropdown Options.
+    # Legacy keys (cash, card…) or an option label from Developer Options → Dropdown Options.
     payment_method = models.CharField(max_length=50, choices=PAYMENT_METHODS, default='cash')
     notes = models.TextField(blank=True)
     void_reason = models.TextField(blank=True)

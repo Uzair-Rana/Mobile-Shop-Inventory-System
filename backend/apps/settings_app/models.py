@@ -29,7 +29,7 @@ class CompanySettings(models.Model):
     receipt_footer = models.TextField(blank=True, help_text='Printed at the bottom of receipts')
     logo = models.FileField(upload_to='company/', null=True, blank=True)
     theme = models.CharField(max_length=20, choices=THEMES, default='crimson')
-    # Printed bills: paper the receipt is laid out for (Settings → Printing)
+    # Printed bills: paper the receipt is laid out for (Developer Options → Printing)
     receipt_paper = models.CharField(max_length=10, choices=RECEIPT_PAPERS, default='80mm')
     receipt_show_logo = models.BooleanField(default=True)
     bill_disclaimer = models.TextField(
@@ -48,7 +48,7 @@ class CompanySettings(models.Model):
 
 
 class ChoiceOption(models.Model):
-    """Owner-editable dropdown options (Settings → Dropdown Options).
+    """Owner-editable dropdown options (Developer Options → Dropdown Options).
 
     Records store the option's *label* as plain text, so renaming or hiding an
     option never breaks existing records."""

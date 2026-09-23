@@ -55,6 +55,11 @@ class ProcurementItem(models.Model):
     unit_cost   = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     sell_price  = models.DecimalField(max_digits=12, decimal_places=2, default=0,
                                       help_text='Used when creating new stock')
+    # Low-stock alert threshold for the stock record this line feeds. Blank on an
+    # existing item keeps whatever threshold that item already has.
+    low_stock_alert = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text='Alert when stock falls to or below this quantity (accessory / product / spare part)')
 
     # IMEI category only — one IMEI per line, comma/space/newline separated
     imeis       = models.TextField(blank=True)

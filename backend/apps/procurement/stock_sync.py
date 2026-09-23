@@ -66,7 +66,13 @@ def apply_item(item, actor=None):
                 prod.cost_price = item.unit_cost
             if item.sell_price:
                 prod.sell_price = item.sell_price
-            prod.save(update_fields=['stock_qty', 'cost_price', 'sell_price', 'updated_at'])
+            fields = ['stock_qty', 'cost_price', 'sell_price', 'updated_at']
+            # A threshold typed on this line updates the item's alert level;
+            # leaving it blank keeps the level the item already has.
+            if item.low_stock_alert is not None:
+                prod.reorder_level = item.low_stock_alert
+                fields.append('reorder_level')
+            prod.save(update_fields=fields)
         else:
             prod = Product.objects.create(
                 name=item.product,
@@ -75,6 +81,8 @@ def apply_item(item, actor=None):
                 category='Accessory' if cat == 'accessory' else 'Product',
                 cost_price=item.unit_cost or 0, sell_price=item.sell_price or 0,
                 stock_qty=item.qty,
+                **({'reorder_level': item.low_stock_alert}
+                   if item.low_stock_alert is not None else {}),
             )
         # Audit trail — mirror the ledger entry spare parts get.
         StockMovement.objects.create(
@@ -98,7 +106,12 @@ def apply_item(item, actor=None):
                 brand_compat=item.brand or '',
                 cost_price=item.unit_cost or 0, sell_price=item.sell_price or 0,
                 created_by=actor,
+                **({'reorder_level': item.low_stock_alert}
+                   if item.low_stock_alert is not None else {}),
             )
+        elif item.low_stock_alert is not None:
+            part.reorder_level = item.low_stock_alert
+            part.save(update_fields=['reorder_level'])
         SparePartLedger.objects.create(
             part=part, entry_type='purchase', qty=item.qty,
             unit_cost=item.unit_cost or 0,

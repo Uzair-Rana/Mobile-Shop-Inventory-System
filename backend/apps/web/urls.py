@@ -59,6 +59,7 @@ urlpatterns = [
     # Stock — Spare Parts
     path('stock/spare-parts/',            views.spare_parts,       name='spare_parts'),
     path('stock/spare-parts/<int:pk>/',   views.spare_part_detail, name='spare_part_detail'),
+    path('stock/spare-parts/<int:pk>/edit/', views.spare_part_edit, name='spare_part_edit'),
 
     # Stock — Products
     path('stock/products/',            views.products,     name='products'),

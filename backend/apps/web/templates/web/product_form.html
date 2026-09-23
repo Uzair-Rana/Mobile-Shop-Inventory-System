@@ -1,0 +1,80 @@
+{% extends "web/base.html" %}
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title gradient-text">Edit Product</h1>
+    <p class="page-subtitle">Update details, prices and the low-stock alert. Quantities change through Purchases and
+        sales only.</p>
+</div>
+
+<div class="form-card">
+    {% if error %}<div class="form-error">⚠ {{ error }}</div>{% endif %}
+    <form method="post" action="{% url 'web:product_edit' product.pk %}">
+        {% csrf_token %}
+
+        <p class="section-label">Item</p>
+        <div class="form-grid-2">
+            <div class="form-field">
+                <label class="form-label">Product Name *</label>
+                <input type="text" name="name" class="form-input" required maxlength="255"
+                    value="{{ product.name }}" />
+            </div>
+            <div class="form-field">
+                <label class="form-label">SKU *</label>
+                <input type="text" name="sku" class="form-input" required maxlength="100" value="{{ product.sku }}" />
+            </div>
+            <div class="form-field">
+                <label class="form-label">Brand</label>
+                <input type="text" name="brand" class="form-input" maxlength="100" value="{{ product.brand }}"
+                    placeholder="Optional" />
+            </div>
+            <div class="form-field">
+                <label class="form-label">Category</label>
+                <input type="text" name="category" class="form-input" maxlength="100" value="{{ product.category }}"
+                    placeholder="e.g. Accessory / Product" />
+            </div>
+        </div>
+        <div class="form-field" style="margin-top:.75rem">
+            <label class="form-label">Description</label>
+            <textarea name="description" class="form-textarea" rows="2"
+                placeholder="Optional">{{ product.description }}</textarea>
+        </div>
+
+        <p class="section-label" style="margin-top:1.25rem">Pricing &amp; Stock Alert</p>
+        <div class="form-grid-3">
+            <div class="form-field">
+                <label class="form-label">Cost Price (Rs.)</label>
+                <input type="number" name="cost_price" class="form-input" min="0" step="0.01"
+                    value="{{ product.cost_price|floatformat:2 }}" />
+            </div>
+            <div class="form-field">
+                <label class="form-label">Sell Price (Rs.)</label>
+                <input type="number" name="sell_price" class="form-input" min="0" step="0.01"
+                    value="{{ product.sell_price|floatformat:2 }}" />
+            </div>
+            <div class="form-field">
+                <label class="form-label">Low Stock Alert At (qty) *</label>
+                <input type="number" name="reorder_level" class="form-input" min="0" required
+                    value="{{ product.reorder_level }}" />
+                <small style="color:var(--text-muted)">The item is flagged when stock drops to this level.</small>
+            </div>
+        </div>
+
+        <div class="info-card"
+            style="margin-top:1rem;background:#fff7ed;border-left:3px solid #f97316;padding:.75rem 1rem">
+            <p style="margin:0;font-size:.875rem;color:#9a3412">
+                Current stock: <strong>{{ product.stock_qty }}</strong>
+                {% if product.stock_qty <= product.reorder_level %}<span class="badge badge-red"
+                    style="margin-left:.4rem">⚠ Low</span>{% endif %}
+                — quantities are not edited here. Use
+                <a href="{% url 'web:procurement_add' %}" style="color:#c2410c;font-weight:700">New Purchase</a> to
+                restock.
+            </p>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">💾 Save Changes</button>
+            <a href="{% url 'web:products' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

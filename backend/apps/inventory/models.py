@@ -86,7 +86,7 @@ class Unit(models.Model):
     serial = models.CharField(max_length=100, blank=True)
     brand = models.CharField(max_length=100)
     model = models.CharField(max_length=200)
-    # Free text: options come from Settings → Dropdown Options (CONDITIONS / PTA
+    # Free text: options come from Developer Options → Dropdown Options (CONDITIONS / PTA
     # above are only the initial defaults).
     condition = models.CharField(max_length=50, default='Grade A')
     pta_status = models.CharField(max_length=50, default='PTA Approved')

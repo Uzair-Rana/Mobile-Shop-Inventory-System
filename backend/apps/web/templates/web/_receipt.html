@@ -1,4 +1,4 @@
-{# Compact "pharmacy style" bill, laid out for the paper chosen in Settings → Printing. #}
+{# Compact "pharmacy style" bill, laid out for the paper chosen in Developer Options → Printing. #}
 {# Context: receipt = {title, meta: [(label, value)], rows: [{name, sub, qty, rate, amount}], #}
 {#          totals: [{label, value, minus, strong, alert}], note}; company.                      #}
 <div class="rc rc-{{ company.receipt_paper|default:'80mm' }}" data-paper="{{ company.receipt_paper|default:'80mm' }}">
