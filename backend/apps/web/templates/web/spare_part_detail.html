@@ -23,7 +23,7 @@
                 <div>
                     <span class="badge badge-blue">{{ part.get_category_display }}</span>
                     {% if stock <= part.reorder_level %} <span class="badge badge-red"
-                        style="margin-left:.375rem">⚠ Low Stock</span>
+                        style="margin-left:.375rem">⚠ Low Stock{% if short > 0 %} — {{ short }} short{% endif %}</span>
                         {% endif %}
                 </div>
                 <div style="text-align:right">

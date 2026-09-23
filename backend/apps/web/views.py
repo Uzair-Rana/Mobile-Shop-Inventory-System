@@ -182,10 +182,15 @@ def stock_queryset(kind, params):
     """The filtered stock list for a page — shared by the page itself and its
     Excel export, so both always show the same items.
     kind: products | accessories | devices | spare_parts"""
+    from django.db.models import ExpressionWrapper, IntegerField
     from apps.inventory.models import Product, Unit
     q = params.get('q', '')
+    # "short" = how many units below the alert level an item is (0 or less when
+    # it is fine), so every stock list can show the same shortfall figure.
+    short = lambda have: ExpressionWrapper(F('reorder_level') - F(have),
+                                           output_field=IntegerField())
     if kind in ('products', 'accessories'):
-        qs = Product.objects.order_by('name')
+        qs = Product.objects.annotate(short=short('stock_qty')).order_by('name')
         if kind == 'accessories':
             # Accessories = every non-serialised item except those filed as "Product".
             qs = qs.exclude(category__iexact='product')
@@ -199,7 +204,8 @@ def stock_queryset(kind, params):
             qs = qs.filter(lifecycle_state=params['state'])
         return qs
     # spare parts — stock is derived from the ledger
-    qs = _spare_stock_qs().annotate(stock_level=F('stock')).order_by('category', 'name')
+    qs = (_spare_stock_qs().annotate(stock_level=F('stock'), short=short('stock'))
+          .order_by('category', 'name'))
     if params.get('category'):
         qs = qs.filter(category=params['category'])
     if params.get('low'):
@@ -347,11 +353,14 @@ def stock_export_svg(request, kind):
 
 @login_required(login_url='web:login')
 def products(request):
+    from django.urls import reverse
     qs = stock_queryset('products', request.GET)
     q   = request.GET.get('q', '')
     low = request.GET.get('low', '')
     return render(request, 'web/products.html', _ctx('stock',
-        title='Products', products=qs[:300], q=q, low=low, total=qs.count()))
+        title='Products', products=qs[:300], q=q, low=low, total=qs.count(),
+        section_low_count=section_low_count('products'),
+        low_filter_url=reverse('web:products') + '?low=1'))
 
 
 @login_required(login_url='web:login')
@@ -399,6 +408,12 @@ def low_stock_items():
                      'detail_url': reverse('web:spare_part_detail', args=[part.pk])})
     rows.sort(key=lambda r: (-r['short'], r['name'].lower()))
     return rows
+
+
+def section_low_count(kind):
+    """How many items in one stock section sit at or below their alert level —
+    the whole section, ignoring any search the page is showing."""
+    return stock_queryset(kind, {'low': '1'}).count()
 
 
 def low_stock_count():
@@ -949,11 +964,14 @@ def device_add(request):
 
 @login_required(login_url='web:login')
 def accessories(request):
+    from django.urls import reverse
     qs = stock_queryset('accessories', request.GET)
     q  = request.GET.get('q', '')
     low = request.GET.get('low', '')
     return render(request, 'web/accessories.html', _ctx('stock',
-        title='Accessories', products=qs[:200], q=q, low=low, total=qs.count()))
+        title='Accessories', products=qs[:200], q=q, low=low, total=qs.count(),
+        section_low_count=section_low_count('accessories'),
+        low_filter_url=reverse('web:accessories') + '?low=1'))
 
 
 @login_required(login_url='web:login')
@@ -2003,6 +2021,7 @@ def user_edit(request, pk):
 
 @login_required(login_url='web:login')
 def spare_parts(request):
+    from django.urls import reverse
     from apps.spare_parts.models import SparePart
     qs = stock_queryset('spare_parts', request.GET)
     category = request.GET.get('category', '')
@@ -2012,7 +2031,9 @@ def spare_parts(request):
     categories = SparePart.Category.choices
     return render(request, 'web/spare_parts.html', _ctx('stock',
         title='Spare Parts', parts=qs[:200], categories=categories,
-        active_cat=category, q=q, low=low))
+        active_cat=category, q=q, low=low,
+        section_low_count=section_low_count('spare_parts'),
+        low_filter_url=reverse('web:spare_parts') + '?low=1'))
 
 
 @login_required(login_url='web:login')
@@ -2082,7 +2103,8 @@ def spare_part_detail(request, pk):
     ledger = part.ledger.select_related('actor').order_by('-created_at')[:50]
     stock  = part.ledger.aggregate(s=Sum('qty'))['s'] or 0
     return render(request, 'web/spare_part_detail.html', _ctx('stock',
-        title=part.name, part=part, ledger=ledger, stock=stock))
+        title=part.name, part=part, ledger=ledger, stock=stock,
+        short=max(0, part.reorder_level - stock)))
 
 
 # ══ Procurement ════════════════════════════════════════════════════════════════

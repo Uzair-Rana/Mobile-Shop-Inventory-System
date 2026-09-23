@@ -39,6 +39,8 @@
     {% include "web/_view_toggle.html" with key="spare_parts" %}
 </div>
 
+{% include "web/_low_stock_strip.html" %}
+
 <div class="view-switch" data-view-key="spare_parts" data-view="list">
 <div class="table-card" data-pane="list">
     <table class="table">
@@ -50,6 +52,8 @@
                 <th>Compatible</th>
                 <th>Attributes</th>
                 <th style="text-align:right">Stock</th>
+                <th style="text-align:right">Alert At</th>
+                <th style="text-align:right">Short By</th>
                 <th style="text-align:right">Cost</th>
                 <th style="text-align:right">Sell</th>
                 <th></th>
@@ -81,6 +85,10 @@
                     </span>
                     {% if p.stock_level <= p.reorder_level %}<span style="font-size:.7rem;color:#be123c"> ⚠</span>{% endif %}
                 </td>
+                <td style="text-align:right;color:var(--text-muted)">{{ p.reorder_level }}</td>
+                <td style="text-align:right">{% if p.short > 0 %}<strong
+                        style="color:#be123c">{{ p.short }}</strong>{% else %}<span
+                        style="color:var(--text-muted)">—</span>{% endif %}</td>
                 <td style="text-align:right">Rs. {{ p.cost_price|floatformat:0 }}</td>
                 <td style="text-align:right">Rs. {{ p.sell_price|floatformat:0 }}</td>
                 <td style="display:flex;gap:.35rem;align-items:center">
@@ -93,7 +101,7 @@
             </tr>
             {% empty %}
             <tr>
-                <td colspan="9" style="text-align:center;padding:3rem;color:var(--text-muted)">
+                <td colspan="11" style="text-align:center;padding:3rem;color:var(--text-muted)">
                     No spare parts found.
                     {% if not active_cat %}Add parts via <a href="{% url 'web:procurement_add' %}"
                         style="color:var(--brand-500);font-weight:700">New Purchase</a> and select category
@@ -113,6 +121,8 @@
         <div class="sc-meta">{{ p.brand_compat|default:"—" }}{% if p.model_compat %} · {{ p.model_compat }}{% endif %}</div>
         <div class="sc-price">Rs. {{ p.sell_price|floatformat:0 }}</div>
         <div class="sc-meta">Cost Rs. {{ p.cost_price|floatformat:0 }}</div>
+        <div class="sc-meta">Alert at {{ p.reorder_level }}{% if p.short > 0 %} · <strong
+                style="color:#be123c">short {{ p.short }}</strong>{% endif %}</div>
         <div class="sc-foot">
             <span class="badge {% if p.stock_level <= p.reorder_level %}badge-red{% else %}badge-green{% endif %}">{{ p.stock_level }} in stock</span>
             <span style="display:flex;gap:.3rem">

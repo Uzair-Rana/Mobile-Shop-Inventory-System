@@ -13,7 +13,7 @@ SECTIONS = {
             {'label': 'Spare Parts',    'url_name': 'web:spare_parts',  'icon': 'wrench', 'desc': 'Display, battery, charging, body, camera parts'},
             {'label': 'Products',       'url_name': 'web:products',     'icon': 'box',    'desc': 'Full product catalog'},
             {'label': 'Barcode Labels', 'url_name': 'web:labels',       'icon': 'tag',    'desc': 'Print price / IMEI labels'},
-            {'label': 'Low Stock Alerts', 'url_name': 'web:low_stock',  'icon': 'alert',  'desc': 'Items at or below their alert level'},
+            {'label': 'Low Stock Alerts', 'url_name': 'web:low_stock',  'icon': 'alert',  'desc': 'Items at or below their alert level', 'badge': 'low_stock_count'},
         ],
     },
     'selling': {

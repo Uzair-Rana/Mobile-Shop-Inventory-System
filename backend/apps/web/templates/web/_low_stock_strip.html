@@ -1,0 +1,17 @@
+{# Low-stock alert strip for a stock list. Needs: section_low_count, and the
+   list's own url name in low_filter_url (already carrying ?low=1). #}
+{% if section_low_count %}
+<div class="info-card no-print"
+    style="margin-bottom:1rem;background:#fff1f2;border-left:3px solid #e11d48;padding:.75rem 1rem;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+    <span style="font-size:1.15rem">🔔</span>
+    <p style="margin:0;font-size:.875rem;color:#9f1239;flex:1;min-width:220px">
+        <strong>{{ section_low_count }} item{{ section_low_count|pluralize }} here {{ section_low_count|pluralize:"is,are" }}
+            at or below the low stock alert level.</strong>
+        Set each item's level with ✏ Edit, or when you buy it in Purchases.
+    </p>
+    <a href="{{ low_filter_url }}" class="btn btn-secondary" style="padding:.3rem .8rem;font-size:.8rem">Show only
+        low stock</a>
+    <a href="{% url 'web:low_stock' %}" class="btn btn-primary" style="padding:.3rem .8rem;font-size:.8rem">All
+        alerts</a>
+</div>
+{% endif %}

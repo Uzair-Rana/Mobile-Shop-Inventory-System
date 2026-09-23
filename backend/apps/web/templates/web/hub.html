@@ -12,7 +12,11 @@
         <a class="card hub-card" href="{% url it.url_name %}">
           <span class="hub-icon">{{ it.icon|nav_icon }}</span>
           <div>
-            <div class="hub-title">{{ it.label }}</div>
+            <div class="hub-title">{{ it.label }}
+              {% if it.badge == 'low_stock_count' and low_stock_count %}
+              <span class="tab-badge" style="margin-left:.4rem">{{ low_stock_count }}</span>
+              {% endif %}
+            </div>
             <div class="hub-desc">{{ it.desc }}</div>
           </div>
           <span class="hub-arrow">→</span>
